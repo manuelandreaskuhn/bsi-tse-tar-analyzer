@@ -33,7 +33,7 @@ window.RuleRunner = (function() {
       if (!logType) continue;
 
       try {
-        const parsed = ASN1Parser.parseLogMessage(entry.data);
+        const parsed = ASN1.parseLogMessage(entry.data);
         parsed._filename = basename;
         parsed._path = name;
         parsed._size = entry.size;
@@ -69,7 +69,7 @@ window.RuleRunner = (function() {
       if (!CERT_EXTS.some(ext => bn.endsWith(ext))) continue;
 
       try {
-        const parsed = ASN1Parser.parseCertificate(entry.data);
+        const parsed = ASN1.parseCertificate(entry.data);
         parsed._filename = name.split('/').pop();
         parsed._path = name;
         parsed._size = entry.size;
@@ -91,7 +91,7 @@ window.RuleRunner = (function() {
   /**
    * Run all rule categories against the given archive
    * @param {Object} input  { tarResult, archiveName, archiveType }
-   * @returns {Object}  { results, byCategory, stats, parsedLogs, parsedCerts }
+   * @returns {Object}  { results, byCategory, stats, parsedLogs, parsedCerts, tarResult, infoRows, perFileResults, perCertResults }
    */
   function runAll(input) {
     const { tarResult, archiveName, archiveType } = input;
@@ -100,13 +100,30 @@ window.RuleRunner = (function() {
     const parsedLogs  = parseAllLogs(tarResult);
     const parsedCerts = parseAllCerts(tarResult);
 
-    // Build the context object passed to every rule module
+    // Parse info.csv
+    let infoRows = null;
+    if (tarResult) {
+      for (const [k, entry] of tarResult.files) {
+        if (k.toLowerCase() === 'info.csv') {
+          try {
+            const rawText = new TextDecoder('utf-8').decode(entry.data);
+            infoRows = FileChecker.parseInfoCsv(rawText);
+          } catch(e) {
+            infoRows = null;
+          }
+          break;
+        }
+      }
+    }
+
+    // Build context for rule modules
     const ctx = {
       tarResult,
       archiveName,
       archiveType,
       parsedLogs,
       parsedCerts,
+      infoRows,
     };
 
     // Collect all results
@@ -134,6 +151,28 @@ window.RuleRunner = (function() {
       results.push(...catResults);
     }
 
+    // Per-file log checks
+    const perFileResults = {};
+    for (const log of parsedLogs) {
+      const fn = log._filename;
+      try {
+        perFileResults[fn] = FileChecker.checkSingleLog(log, parsedCerts);
+      } catch(e) {
+        perFileResults[fn] = [{ id:'ERR', name:'Fehler', cat:'LOG_FILE', status:'WARN', detail: String(e), ruleText:'', ref:'' }];
+      }
+    }
+
+    // Per-cert checks
+    const perCertResults = {};
+    for (const cert of parsedCerts) {
+      const fn = cert._filename;
+      try {
+        perCertResults[fn] = FileChecker.checkSingleCert(cert, parsedCerts);
+      } catch(e) {
+        perCertResults[fn] = [{ id:'ERR', name:'Fehler', cat:'CERT_FILE', status:'WARN', detail: String(e), ruleText:'', ref:'' }];
+      }
+    }
+
     // Compute statistics
     const stats = {
       total:  results.length,
@@ -153,7 +192,7 @@ window.RuleRunner = (function() {
     else if (stats.pass > 0) stats.verdict = 'PASS';
     else stats.verdict = 'INFO';
 
-    return { results, byCategory, stats, parsedLogs, parsedCerts };
+    return { results, byCategory, stats, parsedLogs, parsedCerts, tarResult, infoRows, perFileResults, perCertResults };
   }
 
   return { runAll };

@@ -1,220 +1,191 @@
-// ─── app.js – Haupt-Anwendungslogik ──────────────────────────────────────
+// ─── app.js ───────────────────────────────────────────────────────────────
 'use strict';
 
-(function() {
+window.app = (function () {
 
-  // ── DOM refs ─────────────────────────────────────────────────────────────
-  const dropZone       = document.getElementById('drop-zone');
-  const fileInput      = document.getElementById('file-input');
-  const archTypeSelect = document.getElementById('arch-type-select');
-  const mainContent    = document.getElementById('main-content');
-  const sidebarList    = document.getElementById('sidebar-cat-list');
-  const sidebarSection = document.getElementById('sidebar-section');
-  const navOverview    = document.getElementById('nav-overview');
-  const navFiles       = document.getElementById('nav-files');
-  const filterBar      = document.getElementById('filter-bar');
-  const filterBtns     = document.querySelectorAll('.filter-btn');
-  const newAnalysisBtn = document.getElementById('btn-new-analysis');
-
-  // ── Application State ────────────────────────────────────────────────────
-  let state = {
-    tarResult:    null,
-    archiveName:  null,
-    archiveType:  'standard',     // 'standard' | 'cert-export'
-    runResult:    null,
-    activeView:   'welcome',      // 'welcome' | 'overview' | 'category' | 'files'
-    activeCat:    null,
-    filterStatus: null,           // null | 'PASS' | 'FAIL' | 'WARN' | 'INFO' | 'SKIP'
+  const S = {
+    tarResult: null, archiveName: null, archiveType: 'standard',
+    runResult: null, activeCat: null, filterStatus: 'all',
+    activeFile: null, activeCert: null,
   };
 
-  // ── Boot ─────────────────────────────────────────────────────────────────
-  UIRenderer.renderWelcome(mainContent);
-  _hideSidebar();
+  const $content   = document.getElementById('content');
+  const $sidebar   = document.getElementById('sidebar');
+  const $catList   = document.getElementById('sidebar-cat-list');
+  const $btnReset  = document.getElementById('btn-reset');
+  const $typeBadge = document.getElementById('header-type-badge');
 
-  // ── Event Listeners ───────────────────────────────────────────────────────
+  _showWelcome();
 
-  // Drag-and-drop
-  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-  dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
-  dropZone.addEventListener('drop', e => {
-    e.preventDefault();
-    dropZone.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file) _loadFile(file);
-  });
+  // ── Welcome ──────────────────────────────────────────────────────────────
+  function _showWelcome() {
+    UIRenderer.renderWelcome($content);
+    const dz = $content.querySelector('#drop-zone');
+    const fi = $content.querySelector('#file-input');
+    if (!dz || !fi) return;
 
-  // File input click
-  dropZone.addEventListener('click', () => fileInput.click());
-  fileInput.addEventListener('change', () => {
-    if (fileInput.files[0]) _loadFile(fileInput.files[0]);
-  });
-
-  // Archive-type toggle
-  archTypeSelect && archTypeSelect.addEventListener('change', () => {
-    state.archiveType = archTypeSelect.value;
-    if (state.tarResult) _runAnalysis();
-  });
-
-  // Sidebar category links (delegated)
-  sidebarList.addEventListener('click', e => {
-    const link = e.target.closest('[data-cat]');
-    if (link) {
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+    dz.addEventListener('drop', e => {
       e.preventDefault();
-      _showCategory(link.dataset.cat);
-    }
-  });
-
-  // Sidebar: overview & files nav
-  navOverview && navOverview.addEventListener('click', e => { e.preventDefault(); _showOverview(); });
-  navFiles    && navFiles.addEventListener('click',    e => { e.preventDefault(); _showFiles(); });
-
-  // Filter buttons
-  filterBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const s = btn.dataset.status || null;
-      state.filterStatus = (state.filterStatus === s) ? null : s;
-      _applyFilter();
+      dz.classList.remove('drag-over');
+      const f = e.dataTransfer.files[0];
+      if (f) _loadFile(f);
     });
-  });
+    dz.addEventListener('click', () => fi.click());
+    fi.addEventListener('change', () => {
+      if (fi.files[0]) { _loadFile(fi.files[0]); fi.value = ''; }
+    });
+  }
 
-  // New analysis button
-  newAnalysisBtn && newAnalysisBtn.addEventListener('click', () => _reset());
-
-  // Overview card clicks (delegated)
-  mainContent.addEventListener('click', e => {
-    const card = e.target.closest('[data-cat]');
-    if (card && state.runResult) _showCategory(card.dataset.cat);
-  });
-
-  // ── Core Functions ────────────────────────────────────────────────────────
-
+  // ── File loading ──────────────────────────────────────────────────────────
   function _loadFile(file) {
-    state.archiveName = file.name;
+    S.archiveName = file.name;
+    S.archiveType = /CertificateExport/i.test(file.name) ? 'cert-export' : 'standard';
 
-    // Auto-detect archive type from filename
-    if (/CertificateExport/i.test(file.name)) {
-      state.archiveType = 'cert-export';
-      if (archTypeSelect) archTypeSelect.value = 'cert-export';
-    } else if (/Export/i.test(file.name)) {
-      state.archiveType = 'standard';
-      if (archTypeSelect) archTypeSelect.value = 'standard';
+    if ($typeBadge) {
+      $typeBadge.textContent = S.archiveType === 'cert-export' ? 'CertificateExport' : 'Standard-Export';
     }
 
-    UIRenderer.renderAnalyzing(mainContent, file.name);
+    UIRenderer.renderAnalyzing($content, file.name);
 
     const reader = new FileReader();
     reader.onload = evt => {
       try {
-        const buf = evt.target.result;
-        state.tarResult = TarParser.parse(buf);
+        S.tarResult = TarParser.parse(evt.target.result);
         _runAnalysis();
       } catch (e) {
-        _showError(`TAR-Parsing fehlgeschlagen: ${e.message}`);
+        _showError(`TAR-Parsing fehlgeschlagen:\n${e.message}`);
       }
     };
     reader.onerror = () => _showError('Datei konnte nicht gelesen werden.');
     reader.readAsArrayBuffer(file);
   }
 
+  // ── Analysis ──────────────────────────────────────────────────────────────
   function _runAnalysis() {
-    if (!state.tarResult) return;
-
-    UIRenderer.renderAnalyzing(mainContent, state.archiveName);
-
-    // Small delay to allow rendering before heavy computation
+    UIRenderer.renderAnalyzing($content, S.archiveName);
     setTimeout(() => {
       try {
-        state.runResult = RuleRunner.runAll({
-          tarResult:   state.tarResult,
-          archiveName: state.archiveName,
-          archiveType: state.archiveType,
+        S.runResult = RuleRunner.runAll({
+          tarResult: S.tarResult, archiveName: S.archiveName, archiveType: S.archiveType,
         });
+        $sidebar.style.display = 'block';
+        if ($btnReset) $btnReset.style.display = 'inline-flex';
+        UIRenderer.renderSidebar($catList, S.runResult.byCategory, null);
+        $catList.onclick = e => {
+          const item = e.target.closest('[data-cat]');
+          if (item) _showCategory(item.dataset.cat);
+        };
         _showOverview();
-        _showSidebar();
-        UIRenderer.renderSidebar(sidebarList, state.runResult.byCategory, null);
       } catch (e) {
-        _showError(`Analyse fehlgeschlagen: ${e.message}\n${e.stack || ''}`);
+        _showError(`Analyse-Fehler:\n${e.message}\n${e.stack || ''}`);
       }
-    }, 50);
+    }, 60);
+  }
+
+  // ── Navigation ────────────────────────────────────────────────────────────
+  function navigateTo(target) {
+    if (target === 'overview' && S.runResult) _showOverview();
   }
 
   function _showOverview() {
-    state.activeView  = 'overview';
-    state.activeCat   = null;
-    _setFilterVisible(false);
-    UIRenderer.renderOverview(mainContent, state.runResult, state.archiveName, state.archiveType);
-    UIRenderer.renderSidebar(sidebarList, state.runResult.byCategory, null);
-    _setActiveNav(navOverview);
+    S.activeCat = null; S.activeFile = null; S.activeCert = null;
+    UIRenderer.renderOverview($content, S.runResult, S.archiveName, S.archiveType);
+    UIRenderer.renderSidebar($catList, S.runResult.byCategory, null);
+
+    // Card clicks → category
+    $content.onclick = e => {
+      const card = e.target.closest('[data-cat]');
+      if (card) { _showCategory(card.dataset.cat); return; }
+
+      // File clicks in TAR file list
+      const fileRow = e.target.closest('[data-log-file]');
+      if (fileRow) { _showFileDetail(fileRow.dataset.logFile); return; }
+
+      const certRow = e.target.closest('[data-cert-file]');
+      if (certRow) { _showCertDetail(certRow.dataset.certFile); return; }
+    };
   }
 
   function _showCategory(catName) {
-    if (!state.runResult) return;
-    const catResults = state.runResult.byCategory[catName];
+    const catResults = S.runResult?.byCategory[catName];
     if (!catResults) return;
-
-    state.activeView = 'category';
-    state.activeCat  = catName;
-    _setFilterVisible(true);
-    _updateFilterBtns();
-
-    UIRenderer.renderCategory(mainContent, catName, catResults, state.filterStatus);
-    UIRenderer.renderSidebar(sidebarList, state.runResult.byCategory, catName);
-    _setActiveNav(null);
+    S.activeCat = catName;
+    S.filterStatus = 'all';
+    UIRenderer.renderCategory($content, catName, catResults, 'all', _catIndex(catName), S.runResult);
+    UIRenderer.renderSidebar($catList, S.runResult.byCategory, catName);
   }
 
-  function _showFiles() {
-    if (!state.tarResult) return;
-    state.activeView = 'files';
-    state.activeCat  = null;
-    _setFilterVisible(false);
-
-    mainContent.innerHTML = '<h2 class="page-title">Dateien im Archiv</h2><div id="file-table-container"></div>';
-    UIRenderer.renderFileTable(document.getElementById('file-table-container'), state.tarResult);
-    _setActiveNav(navFiles);
+  function _showFileDetail(filename) {
+    const rr = S.runResult;
+    if (!rr) return;
+    const logEntry = rr.parsedLogs.find(l => l._filename === filename);
+    if (!logEntry) return;
+    S.activeFile = filename;
+    S.activeCat = null;
+    UIRenderer.renderFileDetail($content, filename, logEntry, rr.perFileResults[filename] || []);
+    UIRenderer.renderSidebar($catList, rr.byCategory, null);
   }
 
-  function _applyFilter() {
-    _updateFilterBtns();
-    if (state.activeView === 'category' && state.activeCat) {
-      const catResults = state.runResult.byCategory[state.activeCat];
-      UIRenderer.renderCategory(mainContent, state.activeCat, catResults, state.filterStatus);
+  function _showCertDetail(filename) {
+    const rr = S.runResult;
+    if (!rr) return;
+    const certEntry = rr.parsedCerts.find(c => c._filename === filename);
+    if (!certEntry) return;
+    S.activeCert = filename;
+    S.activeCat = null;
+    UIRenderer.renderCertDetail($content, filename, certEntry, rr.perCertResults[filename] || []);
+    UIRenderer.renderSidebar($catList, rr.byCategory, null);
+  }
+
+  // ── Public API ─────────────────────────────────────────────────────────────
+  function setFilter(filterValue, btn) {
+    S.filterStatus = filterValue;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    if (S.activeCat && S.runResult) {
+      UIRenderer.renderCategory($content, S.activeCat,
+        S.runResult.byCategory[S.activeCat], filterValue, _catIndex(S.activeCat), S.runResult);
     }
   }
 
-  function _updateFilterBtns() {
-    filterBtns.forEach(btn => {
-      const s = btn.dataset.status || null;
-      btn.classList.toggle('active', s === state.filterStatus);
-    });
+  function toggleCheck(rowEl) {
+    if (!rowEl) return;
+    const d = rowEl.querySelector('.check-details');
+    if (!d) return;
+    const open = d.style.display !== 'none';
+    d.style.display = open ? 'none' : 'block';
+    const ic = rowEl.querySelector('.check-expand-icon');
+    if (ic) ic.textContent = open ? '▼' : '▲';
   }
 
-  function _reset() {
-    state = {
-      tarResult: null, archiveName: null, archiveType: 'standard',
-      runResult: null, activeView: 'welcome', activeCat: null, filterStatus: null,
-    };
-    if (archTypeSelect) archTypeSelect.value = 'standard';
-    fileInput.value = '';
-    UIRenderer.renderWelcome(mainContent);
-    _hideSidebar();
+  function reset() {
+    Object.assign(S, { tarResult: null, archiveName: null, archiveType: 'standard',
+      runResult: null, activeCat: null, filterStatus: 'all', activeFile: null, activeCert: null });
+    $sidebar.style.display = 'none';
+    if ($btnReset)  $btnReset.style.display = 'none';
+    if ($typeBadge) $typeBadge.textContent = '';
+    _showWelcome();
+  }
+
+  function _catIndex(name) {
+    const keys = Object.keys(S.runResult?.byCategory || {});
+    const i = keys.indexOf(name);
+    return i >= 0 ? i + 1 : null;
   }
 
   function _showError(msg) {
-    mainContent.innerHTML = `<div class="error-box"><h3>Fehler</h3><pre>${_esc(msg)}</pre>
-      <button class="btn" onclick="location.reload()">Neu starten</button></div>`;
+    $content.innerHTML = `<div class="card" style="border:2px solid var(--fail);padding:24px;margin:40px auto;max-width:600px">
+      <div style="font-size:16px;font-weight:700;color:var(--fail);margin-bottom:12px">⛔ Fehler</div>
+      <pre style="white-space:pre-wrap;font-size:12px;color:var(--text-muted);margin:0 0 16px">${_esc(msg)}</pre>
+      <button class="btn btn-secondary" onclick="app.reset()">← Zurück</button>
+    </div>`;
   }
 
-  function _showSidebar()  { sidebarSection && (sidebarSection.hidden = false); }
-  function _hideSidebar()  { sidebarSection && (sidebarSection.hidden = true); }
-  function _setFilterVisible(v) { filterBar && (filterBar.hidden = !v); }
-
-  function _setActiveNav(el) {
-    [navOverview, navFiles].forEach(n => n && n.classList.remove('active'));
-    if (el) el.classList.add('active');
+  function _esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  function _esc(str) {
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
+  return { navigateTo, setFilter, toggleCheck, reset };
 })();

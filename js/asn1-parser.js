@@ -112,7 +112,7 @@ const ASN1 = (() => {
   const SIG_OID_SHA384 = '0.4.0.127.0.7.1.1.4.1.4';
 
   function parseLogMessage(data) {
-    // TSE LogMessage is a SEQUENCE with:
+    if (data instanceof ArrayBuffer) data = new Uint8Array(data);
     // [0] version INTEGER
     // [1] certifiedDataType OID
     // [2] certifiedData (choice by type)
@@ -275,7 +275,178 @@ const ASN1 = (() => {
       result.parseError = 'Parsing-Fehler: ' + e.message;
     }
 
+    // ── Post-processing: compute derived fields used by rule checks ──────
+    _postProcessLog(result);
     return result;
+  }
+
+  const _LOG_SIG_NAMES = {
+    '0.4.0.127.0.7.1.1.4.1.1': 'ecdsa-plain-SHA1',
+    '0.4.0.127.0.7.1.1.4.1.2': 'ecdsa-plain-SHA224',
+    '0.4.0.127.0.7.1.1.4.1.3': 'ecdsa-plain-SHA256',
+    '0.4.0.127.0.7.1.1.4.1.4': 'ecdsa-plain-SHA384',
+    '0.4.0.127.0.7.1.1.4.1.5': 'ecdsa-plain-SHA512',
+    '1.2.840.10045.4.3.2': 'ecdsa-with-SHA256',
+    '1.2.840.10045.4.3.3': 'ecdsa-with-SHA384',
+  };
+
+  function _tryDecode(bytes) {
+    if (!bytes || bytes.length === 0) return '';
+    try { return new TextDecoder('utf-8', {fatal: true}).decode(bytes); }
+    catch(e) {
+      // Latin-1 fallback
+      try { return new TextDecoder('latin1').decode(bytes); } catch { return null; }
+    }
+  }
+
+  function _postProcessLog(r) {
+    // Aliases for v1 compatibility
+    r.oid        = r.certifiedDataType;
+    r.sigAlgOID  = r.signatureAlgorithm;
+    r.sigAlgName = _LOG_SIG_NAMES[r.signatureAlgorithm] || r.signatureAlgorithm || '–';
+
+    // logType as human-readable string
+    if (r.logType === 'txn')   r.logType = 'TransactionLog';
+    else if (r.logType === 'sys')   r.logType = 'SystemLog';
+    else if (r.logType === 'audit') r.logType = 'AuditLog';
+
+    // serialNumber as hex string
+    if (r.serialNumber instanceof Uint8Array) {
+      r.serialNumber = Utils.hexString(r.serialNumber);
+    }
+
+    // signatureValue derived
+    if (r.signatureValue instanceof Uint8Array) {
+      r.signatureValueLen = r.signatureValue.length;
+      r.signatureValueHex = Utils.hexString(r.signatureValue);
+    } else {
+      r.signatureValueLen = null;
+      r.signatureValueHex = null;
+    }
+
+    // processData derived
+    if (r.processData instanceof Uint8Array) {
+      r.processDataLen  = r.processData.length;
+      r.processDataHex  = Utils.hexString(r.processData).slice(0, 64);
+      r.processDataText = _tryDecode(r.processData);
+      // Store original tag info if processData is indefinite
+      r.processDataTag  = r.indefiniteLengthUsed ? 0xa2 : 0x82;
+    } else {
+      r.processDataLen = null;
+    }
+
+    // additionalExternalData derived
+    if (r.additionalExternalData instanceof Uint8Array) {
+      r.additionalExternalDataPresent = true;
+      r.additionalExternalDataLen  = r.additionalExternalData.length;
+      r.additionalExternalDataText = _tryDecode(r.additionalExternalData);
+      r.additionalExternalDataHex  = Utils.hexString(r.additionalExternalData).slice(0, 48);
+    } else {
+      r.additionalExternalDataPresent = false;
+      r.additionalExternalDataLen = 0;
+    }
+
+    // additionalInternalData derived
+    if (r.additionalInternalData instanceof Uint8Array) {
+      r.additionalInternalDataPresent = true;
+      r.additionalInternalDataLen = r.additionalInternalData.length;
+    } else {
+      r.additionalInternalDataPresent = false;
+      r.additionalInternalDataLen = 0;
+    }
+
+    // seAuditData derived
+    if (r.seAuditData instanceof Uint8Array) {
+      r.seAuditDataLen      = r.seAuditData.length;
+      r.seAuditDataHex      = Utils.hexString(r.seAuditData).slice(0, 64);
+      r.seAuditDataDecoded  = _tryDecode(r.seAuditData);
+      // Check if it's an ASN.1 SEQUENCE
+      r.seAuditDataIsASN1   = r.seAuditData.length > 1 && r.seAuditData[0] === 0x30;
+    } else {
+      r.seAuditDataLen = null;
+    }
+
+    // eventData derived
+    if (r.eventData instanceof Uint8Array) {
+      r.eventDataLen     = r.eventData.length;
+      r.eventDataDecoded = _tryDecode(r.eventData);
+
+      // Parse eventData children (SEQUENCE wrapper)
+      if (r.eventData.length > 2 && r.eventData[0] === 0x30) {
+        try {
+          const hdrLen = 1 + (r.eventData[1] < 0x80 ? 1 : (r.eventData[1] & 0x7f) + 1);
+          const kids = parseChildren(r.eventData, hdrLen, r.eventData.length);
+
+          // Check for time value (updateTime: seTimeAfterUpdate)
+          r.eventDataHasTimeValue = kids.some(k => k.tag === 0x18 || k.tag === 0x17 ||
+            (k.tag & 0x80) === 0x80);
+
+          // ENUMERATED authenticationResult (TR-03151-1 tag 0x0A)
+          const AUTH_RESULT_NAMES = { 0:'success', 1:'unknownUserId', 2:'incorrectPin', 3:'pinBlocked' };
+          const enumKids = kids.filter(k => k.tag === 0x0A);
+          if (enumKids.length > 0) {
+            let ev = 0;
+            for (const b of (enumKids[0].value || [])) ev = ev * 256 + b;
+            r.eventDataAuthResultEnum = ev;
+            r.eventDataAuthResultStr  = AUTH_RESULT_NAMES[ev] || ('ENUM:' + ev);
+            r.eventDataAuthResult     = ev === 0; // success
+          }
+
+          // BOOLEAN authenticationResult (legacy)
+          const boolKids = kids.filter(k => k.tag === 0x01);
+          if (boolKids.length > 0 && r.eventDataAuthResult === undefined) {
+            r.eventDataAuthResult = (boolKids[0].value && boolKids[0].value[0] !== 0);
+          }
+
+          // INTEGER remainingRetries
+          const intKids = kids.filter(k => k.tag === 0x02);
+          if (intKids.length > 0) {
+            let rv = 0;
+            for (const b of (intKids[0].value || [])) rv = rv * 256 + b;
+            r.eventDataRemainingRetries = rv;
+          }
+
+          // logOut: loggedOutUserId (UTF8String / PrintableString) + logOutCase (ENUMERATED)
+          if (r.eventType === 'logOut') {
+            const LOGOUT_CASE = { 0:'sessionTimeout', 1:'differentUserLoggedIn', 2:'userIdleTimeout', 3:'userLoggedOut' };
+            const STR_TAGS = [0x0C, 0x13, 0x16, 0x1A, 0x1B];
+            const strKids  = kids.filter(k => STR_TAGS.includes(k.tag));
+            const enumLO   = kids.filter(k => k.tag === 0x0A);
+            if (strKids.length > 0) {
+              r.loggedOutUserId = new TextDecoder('utf-8', { fatal: false }).decode(strKids[0].value || new Uint8Array());
+            }
+            if (enumLO.length > 0) {
+              let lv = 0;
+              for (const b of (enumLO[0].value || [])) lv = lv * 256 + b;
+              r.logOutCaseEnum = lv;
+              r.logOutCaseStr  = LOGOUT_CASE[lv] || ('ENUM:' + lv);
+            } else if (strKids.length > 1) {
+              r.logOutCaseStr = new TextDecoder('utf-8', { fatal: false }).decode(strKids[1].value || new Uint8Array());
+            }
+          }
+
+          // unblockUser: unblockedUserId
+          if (r.eventType === 'unblockUser') {
+            const STR_TAGS = [0x0C, 0x13, 0x16, 0x1A, 0x1B];
+            const strKids2 = kids.filter(k => STR_TAGS.includes(k.tag));
+            if (strKids2.length > 0) {
+              r.unblockedUserId = new TextDecoder('utf-8', { fatal: false }).decode(strKids2[0].value || new Uint8Array());
+            }
+          }
+
+        } catch (e) {
+          r.eventDataHasTimeValue = false;
+        }
+      } else {
+        r.eventDataHasTimeValue = false;
+      }
+    } else {
+      r.eventDataLen = null;
+      r.eventDataHasTimeValue = false;
+    }
+
+    // hasIndefiniteEncoding alias
+    r.hasIndefiniteEncoding = r.indefiniteLengthUsed || r.hasIndefiniteLengthOutsideProcessData;
   }
 
   // ── X.509 Certificate Parsing ─────────────────────────────────────────
@@ -297,6 +468,7 @@ const ASN1 = (() => {
   const BSI_TSE_OID_PREFIX = '0.4.0.127.0.7.3.7.2.';
 
   function parseCertificate(data) {
+    if (data instanceof ArrayBuffer) data = new Uint8Array(data);
     const cert = {
       raw: data,
       version: null,
@@ -451,10 +623,11 @@ const ASN1 = (() => {
       }
       else if (oid === '2.5.29.15') { // KeyUsage
         try {
-          const kuBits = extValue.value ? extValue.value : (extValue.tag === 0x03 ? extValue.value : null);
-          if (kuBits && kuBits.length >= 2) {
-            const unusedBits = kuBits[0];
-            cert.keyUsage = (kuBits[1] << 1) | (kuBits.length > 2 ? kuBits[2] >> 7 : 0);
+          // X.509 BIT STRING: byte[0]=unused bits, byte[1]=key usage flags
+          // bit7(0x80)=digitalSignature, bit2(0x04)=keyCertSign, bit1(0x02)=cRLSign
+          const kuRaw = extValue.value ? extValue.value : null;
+          if (kuRaw && kuRaw.length >= 2) {
+            cert.keyUsage = kuRaw[1]; // raw byte – do NOT shift
           }
         } catch {}
       }
@@ -476,10 +649,42 @@ const ASN1 = (() => {
         } catch {}
       }
       else if (oid === '2.5.29.31') { // CRL Distribution Point
-        cert.crlDP = oid; // simplified: just mark presence
+        try {
+          // CRLDistributionPoints ::= SEQUENCE OF DistributionPoint
+          const dpSeq = extValue.value ? readTLV(extValue.value, 0) : extValue;
+          const dps = parseChildren(dpSeq.value || dpSeq.value, 0, (dpSeq.value || extValue.value || []).length);
+          cert.crlDistPoints = [];
+          for (const dp of dps) {
+            // DistributionPoint [0] = distributionPointName
+            const dpFields = parseChildren(dp.value, 0, dp.value.length);
+            for (const dpf of dpFields) {
+              if ((dpf.tag & 0xe0) === 0xa0) { // [0] context
+                // fullName [0] SEQUENCE OF GeneralName
+                const gnSeq = parseChildren(dpf.value, 0, dpf.value.length);
+                for (const gn of gnSeq) {
+                  if (gn.tag === 0x86) { // [6] uniformResourceIdentifier
+                    cert.crlDistPoints.push(new TextDecoder().decode(gn.value));
+                  }
+                }
+              }
+            }
+          }
+          if (cert.crlDistPoints.length === 0) cert.crlDP = oid; // fallback
+        } catch { cert.crlDP = oid; cert.crlDistPoints = []; }
       }
       else if (oid === '2.5.29.32') { // Certificate Policies
-        cert.certPolicy = oid;
+        try {
+          const cpSeq = extValue.value ? readTLV(extValue.value, 0) : extValue;
+          const pols  = parseChildren(cpSeq.value || extValue.value || [], 0,
+                         (cpSeq.value || extValue.value || []).length);
+          cert.certPolicies = [];
+          for (const pol of pols) {
+            const polFields = parseChildren(pol.value, 0, pol.value.length);
+            if (polFields.length > 0 && polFields[0].tag === 0x06) {
+              cert.certPolicies.push(readOID(polFields[0].value));
+            }
+          }
+        } catch { cert.certPolicies = []; }
       }
       else if (oid.startsWith(BSI_TSE_OID_PREFIX)) {
         cert.bsiTseOID = oid;
@@ -497,26 +702,37 @@ const ASN1 = (() => {
     const unknownLines = [];
 
     for (const line of lines) {
-      if (line.startsWith('component:')) {
-        const rest = line.slice('component:'.length);
-        const fields = {};
-        for (const part of rest.split(',')) {
-          const eqIdx = part.indexOf('=');
-          if (eqIdx >= 0) {
-            const k = part.slice(0, eqIdx).trim();
-            const v = part.slice(eqIdx + 1).trim();
-            fields[k] = v;
-          }
+      // Parse quoted CSV: "key:","value","key:","value",...
+      const fields = [];
+      let cur = '', inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (c === '"') inQ = !inQ;
+        else if (c === ',' && !inQ) { fields.push(cur); cur = ''; }
+        else cur += c;
+      }
+      fields.push(cur);
+      // Clean up each field: trim + remove any remaining outer quotes
+      const cl = fields.map(f => f.trim().replace(/^[""]|[""]$/g, '').trim());
+
+      if (cl[0] === 'component:') {
+        // Fields: component:, <type>, key:, val, key:, val, ...
+        const obj = { component: cl[1] || '', validComponent: false };
+        for (let i = 2; i + 1 < cl.length; i += 2) {
+          const k = cl[i].replace(/:$/, '');
+          const v = cl[i + 1] || '';
+          if (k) obj[k] = v;
         }
-        components.push(fields);
-      } else if (line.startsWith('description:')) {
-        description = line.slice('description:'.length).trim();
+        obj.validComponent = ['device','storage','integration-interface','CSP','SMA'].includes(obj.component);
+        components.push(obj);
+      } else if (cl[0] === 'description:') {
+        description = cl[1] || '';
       } else {
         unknownLines.push(line);
       }
     }
 
-    return { components, description, unknownLines, rawLines: lines };
+    return { components, description, unknownLines, raw: text };
   }
 
   return {

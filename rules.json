@@ -1,0 +1,2160 @@
+{
+  "EXP_TAR_01": {
+    "id": "EXP_TAR_01",
+    "name": "TAR-Format POSIX.1-2001 (ustar)",
+    "rule": "Jeder Datei-Header im Archiv muss den Magic-String ustar an Offset 257 enthalten.",
+    "pass_text": "Alle Header enthalten ustar oder ustar  (mit Leerzeichen).",
+    "fail_text": "Mindestens ein Header hat keinen gültigen ustar-Magic-String.",
+    "ref": "BSI TR-03153-1 §6.4.1"
+  },
+  "EXP_TAR_END": {
+    "id": "EXP_TAR_END",
+    "name": "Abschluss: Zwei Null-Blöcke",
+    "rule": "Das TAR-Archiv muss mit mindestens zwei aufeinanderfolgenden, vollständig mit Nullen gefüllten 512-Byte-Blöcken abgeschlossen werden.",
+    "pass_text": "Zwei Null-Blöcke erkannt.",
+    "warn_text": "Ende-Markierung nicht vollständig gefunden.",
+    "ref": "POSIX.1-2001"
+  },
+  "EXP_TAR_DIR": {
+    "id": "EXP_TAR_DIR",
+    "name": "Keine Unterverzeichnisse",
+    "rule": "Das Archiv darf keine Verzeichniseinträge (typeflag 5) und keine Dateien in Unterverzeichnissen (Pfad enthält /) enthalten. Alle Dateien liegen direkt im Wurzelverzeichnis.",
+    "pass_text": "Keine Verzeichniseinträge und keine Dateien in Unterverzeichnissen vorhanden.",
+    "fail_text": "Verzeichniseinträge oder Dateien in Unterverzeichnissen gefunden.",
+    "ref": "BSI TR-03151-1 §5.2"
+  },
+  "EXP_TAR_CHK": {
+    "id": "EXP_TAR_CHK",
+    "name": "Header-Checksummen",
+    "rule": "Die Prüfsumme in jedem 512-Byte-Header muss korrekt sein. Berechnung: Summe aller Bytes, wobei die 8 Checksummen-Bytes (Offset 148–155) als Leerzeichen (0x20) behandelt werden.",
+    "pass_text": "Alle Header-Checksummen gültig.",
+    "fail_text": "Mindestens eine Checksumme ungültig (Dateinamen werden ausgegeben).",
+    "ref": "POSIX.1-2001"
+  },
+  "EXP_TAR_03": {
+    "id": "EXP_TAR_03",
+    "name": "Keine unspezifizierten Dateien",
+    "rule": "Das Archiv darf nur die drei erlaubten Dateitypen enthalten: info.csv, .log-Dateien und Zertifikat-Dateien (.cer, .crt, .der, .pem).",
+    "pass_text": "Alle Dateien entsprechen den erlaubten Typen.",
+    "fail_text": "Dateien mit unbekannter Endung vorhanden.",
+    "ref": "BSI TR-03153-1 §6.4.1"
+  },
+  "EXP_TAR_NOEXTRA": {
+    "id": "EXP_TAR_NOEXTRA",
+    "name": "Keine unzulässigen Dateien im TAR-Container",
+    "rule": "Jede Datei im TAR-Archiv muss einem der folgenden zulässigen",
+    "pass_text": "Alle Dateien im TAR entsprechen einem der zulässigen Muster.",
+    "fail_text": "Mindestens eine Datei entspricht keinem zulässigen Muster.",
+    "note": "Verzeichniseinträge sind durch die bestehende Regel EXP_TAR_DIR",
+    "ref": "BSI TR-03153-1 §6.4; BSI TR-03151-1 §5.2; EXP_TAR_03"
+  },
+  "EXP_ARCH_NAME": {
+    "id": "EXP_ARCH_NAME",
+    "name": "Archivdateiname (Export_*.tar)",
+    "regex": "^Export_[^.]+\\.(tar|tar\\.\\d{3})$",
+    "pass_text": "Dateiname entspricht dem Schema Export_{DATUM}.tar.",
+    "warn_text": "Dateiname entspricht nicht dem Schema.",
+    "ref": "BSI TR-03151-1 §5.2"
+  },
+  "EXP_ARCH_TYPE": {
+    "id": "EXP_ARCH_TYPE",
+    "name": "Archiv-Typ (info)",
+    "typ": "Informationsmeldung, kein Pass/Fail.",
+    "inhalt": "„Standard-Datenexport (Export_*) – enthält Logs, Zertifikate + info.csv.\""
+  },
+  "EXP_ARCH_SPLIT": {
+    "id": "EXP_ARCH_SPLIT",
+    "name": "Aufgeteiltes Archiv",
+    "trigger": "Dateiname endet auf .NNN (dreistellige Zahl nach dem Punkt), z.B. .001.",
+    "status": "Warnung.",
+    "inhalt": "Hinweis auf aufgeteiltes Archiv-Segment.",
+    "ref": "BSI TR-03151-1 §5.2"
+  },
+  "EXP_ARCH_NAME_CERT": {
+    "id": "EXP_ARCH_NAME_CERT",
+    "name": "CertificateExport-Dateiname",
+    "regex": "^CertificateExport_(Gent|Utc|Unixt)_[^.]+\\.tar(\\.\\d+)?$",
+    "pass_text": "Dateiname entspricht Schema CertificateExport_{Gent|Utc|Unixt}_{DATUM}.tar[.{N}].",
+    "warn_text": "Dateiname entspricht nicht dem Schema.",
+    "beispiel": "CertificateExport_Gent_20240304140000Z.tar",
+    "ref": "BSI TR-03151-1 §5.2 CertificateExport"
+  },
+  "EXP_ARCH_FMT": {
+    "id": "EXP_ARCH_FMT",
+    "name": "Zeitformat-Präfix im Dateinamen",
+    "rule": "Der Dateiname muss mit einem der drei gültigen Zeitformat-Bezeichner beginnen.",
+    "allowed": "Gent (ASN.1 GeneralizedTime), Utc (ASN.1 UTCTime), Unixt (Unix-Timestamp)",
+    "pass_text": "Gültiger Präfix erkannt.",
+    "fail_text": "Kein gültiger Zeitformat-Präfix vorhanden.",
+    "ref": "BSI TR-03151-1 §5.2 CertificateExport"
+  },
+  "EXP_ARCH_TYPE_CERT": {
+    "id": "EXP_ARCH_TYPE_CERT",
+    "name": "Archiv-Typ (info)",
+    "typ": "Informationsmeldung.",
+    "inhalt": "„CertificateExport – enthält ausschließlich Zertifikate + info.csv (keine Log-Nachrichten).\""
+  },
+  "EXP_ARCH_SPLIT_CERT": {
+    "id": "EXP_ARCH_SPLIT_CERT",
+    "name": "Kollisionszähler (info)",
+    "trigger": "Dateiname endet auf .N (Zahl nach dem letzten Punkt).",
+    "status": "Info.",
+    "inhalt": "Hinweis auf Kollisionszähler für Duplikate."
+  },
+  "EXP_INF_01": {
+    "id": "EXP_INF_01",
+    "name": "Datei info.csv vorhanden",
+    "rule": "Die info.csv sollte eine description:-Zeile enthalten.",
+    "pass_text": "description:-Zeile vorhanden.",
+    "fail_text": "Keine Komponentenzeilen oder ungültige Bezeichner.",
+    "ref": "BSI TR-03153-1 §6.4.2",
+    "warn_text": "Keine description:-Zeile.",
+    "allowed": "device, storage, integration-interface, CSP, SMA"
+  },
+  "EXP_INF_05": {
+    "id": "EXP_INF_05",
+    "name": "Keine unbekannten Zeilen",
+    "rule": "Alle Zeilen der info.csv müssen als component: oder description: erkannt werden. Unbekannte Zeilen werden gemeldet.",
+    "pass_text": "Alle Zeilen erkannt.",
+    "warn_text": "Unbekannte Zeile(n) vorhanden.",
+    "ref": "BSI TR-03153-1 §6.4.2"
+  },
+  "EXP_LOG_PRESENT": {
+    "id": "EXP_LOG_PRESENT",
+    "name": "Log-Dateien vorhanden",
+    "rule": "Ein Standard-Export muss mindestens eine .log-Datei enthalten.",
+    "pass_text": "Mindestens eine Log-Datei vorhanden.",
+    "fail_text": "Keine Log-Dateien.",
+    "ref": "BSI TR-03153-1 §6.4.3"
+  },
+  "EXP_LOG_03": {
+    "id": "EXP_LOG_03",
+    "name": "Log-Datei Namenskonventionen",
+    "rule": "Jede .log-Datei muss einem der drei bekannten Namensschemata entsprechen (SystemLog, AuditLog, TransactionLog).",
+    "schemata": "",
+    "pass_text": "Alle Log-Dateien einem Schema zugeordnet.",
+    "warn_text": "Mindestens eine Datei keinem Schema zuordenbar. Statistik: System/Audit/Transaktion/Gesamt.",
+    "ref": "BSI TR-03151-1 / BSI TR-03153-1 §6.4.3"
+  },
+  "EXP_CRT_PRESENT": {
+    "id": "EXP_CRT_PRESENT",
+    "name": "Zertifikat-Dateien vorhanden",
+    "rule": "Das Archiv muss mindestens eine Zertifikat-Datei enthalten.",
+    "erlaubte_endungen": ".cer, .crt, .der, .pem",
+    "pass_text": "Anzahl und Namen der Zertifikate werden ausgegeben.",
+    "fail_text": "Keine Zertifikat-Dateien vorhanden.",
+    "ref": "BSI TR-03151-1 §5.2"
+  },
+  "EXP_CRT_NAME": {
+    "id": "EXP_CRT_NAME",
+    "name": "Zertifikat-Dateinamen",
+    "rule": "Jede Zertifikat-Datei muss dem Schema {HEX}_X509.{ext} entsprechen.",
+    "regex": "^[0-9a-fA-F]+_X509\\.(cer|crt|der|pem)$",
+    "pass_text": "Alle Zertifikat-Dateien entsprechen dem Schema.",
+    "warn_text": "Mindestens eine Datei weicht ab.",
+    "beispiel": "ca54f563...fde1ed_X509.cer",
+    "ref": "BSI TR-03151-1 §5.2"
+  },
+  "CRTEXP_NOLOG": {
+    "id": "CRTEXP_NOLOG",
+    "name": "Keine Log-Dateien enthalten",
+    "rule": "Ein CertificateExport darf **keine** .log-Dateien enthalten. Nur info.csv und Zertifikat-Dateien sind erlaubt.",
+    "pass_text": "Keine Log-Dateien vorhanden.",
+    "fail_text": "Log-Datei(en) gefunden (Dateinamen werden ausgegeben).",
+    "ref": "BSI TR-03151-1 exportLoggingCertificates"
+  },
+  "CRTEXP_FILES": {
+    "id": "CRTEXP_FILES",
+    "name": "Nur erlaubte Dateitypen",
+    "rule": "Das Archiv darf ausschließlich info.csv und Dateien mit den Endungen .cer, .crt, .der, .pem enthalten.",
+    "pass_text": "Alle Dateien vom erlaubten Typ.",
+    "fail_text": "Dateien mit nicht erlaubtem Typ vorhanden.",
+    "ref": "BSI TR-03151-1 CertificateExport"
+  },
+  "CRTEXP_CHAIN": {
+    "id": "CRTEXP_CHAIN",
+    "name": "Zertifikatskette vollständig",
+    "rule": "Der CertificateExport muss die vollständige Validierungskette liefern: mindestens ein Blatt-Zertifikat (TSE) und mindestens ein CA-Zertifikat.",
+    "pass_text": "Mindestens 2 Zertifikat-Dateien vorhanden.",
+    "warn_text": "Genau 1 Zertifikat (Kette möglicherweise unvollständig).",
+    "fail_text": "Keine Zertifikate vorhanden.",
+    "ref": "BSI TR-03151-1 exportLoggingCertificates"
+  },
+  "CRTEXP_ACCESSIBLE_UNAUTHENTICATED": {
+    "id": "CRTEXP_ACCESSIBLE_UNAUTHENTICATED",
+    "name": "exportLoggingCertificates ohne Authentifizierung aufrufbar",
+    "trigger": "TAR-Container aus dem Aufruf von exportLoggingCertificates.",
+    "rule": "Die Funktion exportLoggingCertificates muss ohne vorherige",
+    "prüfung": "Der Analyzer wendet automatisch folgende Regelsets an:",
+    "pass_text": "TAR-Container entspricht dem CertificateExport-Schema",
+    "fail_text": "TAR enthält Log-Dateien (CRTEXP_NOLOG), unerlaubte",
+    "ref": "BSI TR-03151-1 exportLoggingCertificates; BSI TR-03153-1"
+  },
+  "CERT_V3": {
+    "id": "CERT_V3",
+    "name": "X.509 Version 3",
+    "rule": "Das Zertifikat muss X.509 Version 3 sein (Versionsbyte = 2, da 0-indiziert).",
+    "pass_text": "Version 3 erkannt.",
+    "warn_text": "Version < 3.",
+    "ref": "RFC 5280, BSI TR-03116-5 §10.2"
+  },
+  "CERT_SIG_ALG": {
+    "id": "CERT_SIG_ALG",
+    "name": "Signaturalgorithmus",
+    "rule": "Der Signaturalgorithmus muss einer der BSI-konformen ECDSA-Varianten sein.",
+    "erlaubte_oids": "",
+    "pass_text": "OID in erlaubter Liste.",
+    "warn_text": "OID nicht in erlaubter Liste.",
+    "ref": "BSI TR-03116-5"
+  },
+  "CERT_CURVE": {
+    "id": "CERT_CURVE",
+    "name": "Schlüsselkurve",
+    "rule": "Die EC-Kurve des öffentlichen Schlüssels muss eine der erlaubten Kurven sein.",
+    "bsi-bevorzugt_(pass,_grün)": "",
+    "akzeptiert_aber_nicht_bsi-bevorzugt_(warn,_gelb)": "",
+    "fehler_(rot)": "OID nicht in der erlaubten Liste.",
+    "ref": "BSI TR-03116-5 / RFC 5639 / FIPS 186-4"
+  },
+  "CERT_DATE_ORDER": {
+    "id": "CERT_DATE_ORDER",
+    "name": "Gültigkeit: notBefore < notAfter",
+    "rule": "Das Feld notBefore muss zeitlich vor notAfter liegen.",
+    "pass_text": "notBefore < notAfter.",
+    "fail_text": "Ungültige Zeitreihenfolge.",
+    "ref": "RFC 5280, BSI TR-03116-5 §10.2.2"
+  },
+  "CERT_VALID_NOW": {
+    "id": "CERT_VALID_NOW",
+    "name": "Zertifikat aktuell gültig",
+    "rule": "Das aktuelle Datum muss im Gültigkeitszeitraum des Zertifikats liegen (notBefore ≤ jetzt ≤ notAfter).",
+    "pass_text": "Zertifikat gültig.",
+    "fail_text": "Zertifikat abgelaufen oder noch nicht gültig (mit Differenz in Tagen).",
+    "ref": "RFC 5280, BSI TR-03116-5 §10.2.2"
+  },
+  "CERT_PKUP": {
+    "id": "CERT_PKUP",
+    "name": "Private Key Usage Period",
+    "rule": "Wenn die Extension PrivateKeyUsagePeriod (OID 2.5.29.16) vorhanden ist, muss das Nutzungsfenster (notBefore/notAfter innerhalb der Extension) gültig und konsistent sein.",
+    "bestanden_/_warnung": "Je nach Inhalt der Extension.",
+    "ref": "BSI TR-03116-5"
+  },
+  "CERT_BC_CA": {
+    "id": "CERT_BC_CA",
+    "name": "Basic Constraints: CA:TRUE",
+    "rule": "CA-Zertifikate müssen die Extension BasicConstraints mit CA:TRUE enthalten.",
+    "pass_text": "CA:TRUE vorhanden.",
+    "warn_text": "Extension fehlt oder CA:FALSE.",
+    "ref": "RFC 5280, BSI TR-03116-5"
+  },
+  "CERT_KU_CA": {
+    "id": "CERT_KU_CA",
+    "name": "Key Usage: Certificate Sign + CRL Sign",
+    "rule": "CA-Zertifikate müssen in der KeyUsage-Extension mindestens keyCertSign und cRLSign gesetzt haben.",
+    "pass_text": "Beide Bits gesetzt.",
+    "warn_text": "Bits fehlen.",
+    "ref": "RFC 5280, BSI TR-03116-5"
+  },
+  "CERT_BC_LEAF": {
+    "id": "CERT_BC_LEAF",
+    "name": "Basic Constraints: CA:FALSE",
+    "rule": "Das TSE-Blatt-Zertifikat muss CA:FALSE in BasicConstraints haben (oder Extension fehlt – implizit nicht CA).",
+    "pass_text": "CA:FALSE oder keine BasicConstraints-Extension.",
+    "warn_text": "Unerwartetes CA-Flag.",
+    "ref": "RFC 5280"
+  },
+  "CERT_KU_LEAF": {
+    "id": "CERT_KU_LEAF",
+    "name": "Key Usage: Digital Signature",
+    "rule": "Das TSE-Blatt-Zertifikat muss digitalSignature in KeyUsage gesetzt haben. Weitere Bits sollten nicht gesetzt sein.",
+    "pass_text": "digitalSignature gesetzt, keine anderen Bits.",
+    "warn_text": "Abweichungen.",
+    "ref": "RFC 5280"
+  },
+  "CERT_BSI_OID": {
+    "id": "CERT_BSI_OID",
+    "name": "BSI-TSE-OID im Subject",
+    "rule": "Das TSE-Blatt-Zertifikat muss im Subject-DN den BSI-TSE-OID 0.4.0.127.0.7.3.10.1.2 mit der TSE-Seriennummer als Wert enthalten.",
+    "pass_text": "OID vorhanden mit zugehörigem Wert.",
+    "warn_text": "OID fehlt.",
+    "ref": "BSI TR-03153-1 §9.3.2"
+  },
+  "CERT_CN_HASH": {
+    "id": "CERT_CN_HASH",
+    "name": "Dateiname = Subject CN = TSE-Seriennummer",
+    "rule": "Der CN (CommonName) des Subject-DN muss der TSE-Seriennummer entsprechen. Diese wird aus dem BSI-TSE-OID-Feld extrahiert. Der Dateiname der Zertifikatsdatei muss den Subject-CN (als Hex-Hash) als Präfix enthalten.",
+    "pass_text": "CN, Seriennummer und Dateiname stimmen überein.",
+    "warn_text": "Abweichungen.",
+    "ref": "BSI TR-03153-1 §9.3.2"
+  },
+  "CERT_SELF_SIGN": {
+    "id": "CERT_SELF_SIGN",
+    "name": "Root-CA selbst-signiert",
+    "rule": "Das Root-CA-Zertifikat muss selbst-signiert sein: Issuer = Subject (DN-Vergleich).",
+    "pass_text": "Issuer = Subject.",
+    "warn_text": "Issuer ≠ Subject.",
+    "ref": "RFC 5280"
+  },
+  "CERT_SKI": {
+    "id": "CERT_SKI",
+    "name": "Subject Key Identifier (SKI)",
+    "rule": "Das Zertifikat sollte die Extension SubjectKeyIdentifier (OID 2.5.29.14) enthalten.",
+    "pass_text": "SKI vorhanden (Hex-Wert wird ausgegeben).",
+    "warn_text": "SKI fehlt.",
+    "ref": "RFC 5280, BSI TR-03116-5"
+  },
+  "CERT_AKI": {
+    "id": "CERT_AKI",
+    "name": "Authority Key Identifier (AKI)",
+    "rule": "Nicht-Root-Zertifikate sollten die Extension AuthorityKeyIdentifier (OID 2.5.29.35) enthalten. Dieser muss auf den SKI des Ausstellers verweisen.",
+    "pass_text": "AKI vorhanden (Hex-Wert wird ausgegeben).",
+    "warn_text": "AKI fehlt.",
+    "ref": "RFC 5280"
+  },
+  "CERT_CRL": {
+    "id": "CERT_CRL",
+    "name": "CRL Distribution Point",
+    "rule": "Das Zertifikat sollte mindestens einen CRL Distribution Point (OID 2.5.29.31) enthalten.",
+    "pass_text": "CRL-URL(s) vorhanden.",
+    "warn_text": "Keine CRL Distribution Points.",
+    "ref": "BSI TR-03116-5 §10.2.3"
+  },
+  "CERT_POLICY": {
+    "id": "CERT_POLICY",
+    "name": "Certificate Policies",
+    "rule": "Das Zertifikat sollte die Extension CertificatePolicies (OID 2.5.29.32) enthalten.",
+    "pass_text": "Policy-OID(s) vorhanden.",
+    "warn_text": "Keine Certificate Policies.",
+    "ref": "BSI TR-03116-5"
+  },
+  "CERT_CN_PUBKEY_HASH": {
+    "id": "CERT_CN_PUBKEY_HASH",
+    "name": "CN entspricht SHA-256-Hash des öffentlichen Schlüssels",
+    "rule": "Der CN-Wert im Subject des TSE-Blatt-Zertifikats",
+    "pass_text": "CN-Wert des Zertifikats stimmt (hex, case-insensitive)",
+    "fail_text": "Berechnung ergibt einen abweichenden Hashwert. Erwarteter und",
+    "note": "Diese Prüfung ergänzt CERT_CN_HASH, LOG_SERIAL_CERT und",
+    "ref": "BSI TR-03153-1 §9.3.2; BSI TR-03151-1; SM_KRY_03"
+  },
+  "CHAIN_COMPLETE": {
+    "id": "CHAIN_COMPLETE",
+    "name": "Zertifikatskette vollständig",
+    "rule": "Die Kette muss mindestens ein Root-CA-Zertifikat und ein TSE-Blatt-Zertifikat enthalten. Optionale Sub-CA-Zertifikate können dazwischenliegen.",
+    "klassifizierung": "Ein Zertifikat gilt als Root-CA wenn isCA = true und Issuer = Subject (selbst-signiert). Als TSE-Blatt gilt ein Zertifikat, wenn es CA:FALSE hat und den BSI-TSE-OID im Subject enthält.",
+    "pass_text": "Root-CA + TSE-Blatt vorhanden.",
+    "warn_text": "Kette unvollständig.",
+    "ref": "BSI TR-03116-5 §10.2, BSI TR-03153-1"
+  },
+  "CHAIN_AKI_SKI": {
+    "id": "CHAIN_AKI_SKI",
+    "name": "AKI→SKI Verkettung",
+    "rule": "Für jedes Nicht-Root-Zertifikat muss der AKI-Wert (keyIdentifier) mit dem SKI-Wert des Ausstellers übereinstimmen.",
+    "pass_text": "Alle AKI→SKI-Verknüpfungen korrekt.",
+    "warn_text": "Fehlende oder fehlerhafte Verknüpfungen (Details werden ausgegeben).",
+    "ref": "BSI TR-03116-5 §10.2.1"
+  },
+  "CHAIN_VALIDITY": {
+    "id": "CHAIN_VALIDITY",
+    "name": "Kindsgültigkeit ≤ Ausstellergültigkeit",
+    "rule": "Der Gültigkeitszeitraum eines Zertifikats darf den Gültigkeitszeitraum seines Ausstellers nicht überschreiten. Gilt für alle Nicht-Root-Zertifikate.",
+    "pass_text": "Alle Gültigkeitszeiträume innerhalb des Ausstellers.",
+    "warn_text": "Mindestens ein Zertifikat überschreitet den Ausstellerzeitraum.",
+    "ref": "BSI TR-03116-5 §10.2.2"
+  },
+  "CHAIN_ISSUER_MATCH": {
+    "id": "CHAIN_ISSUER_MATCH",
+    "name": "Aussteller-Inhaber-Übereinstimmung",
+    "rule": "Der Issuer-DN jedes Nicht-Root-Zertifikats muss mit dem Subject-DN seines direkten Ausstellers übereinstimmen (DN-Vergleich).",
+    "pass_text": "Alle Issuer/Subject-DNs konsistent.",
+    "warn_text": "Fehlende Übereinstimmungen.",
+    "ref": "BSI TR-03116-5 §10.2.1"
+  },
+  "LOG_PARSE": {
+    "id": "LOG_PARSE",
+    "name": "ASN.1 Parsing",
+    "rule": "Die Log-Datei muss erfolgreich als ASN.1 DER geparst werden können.",
+    "fail_text": "Parsing-Fehler (Fehlermeldung wird ausgegeben). Alle weiteren Prüfungen für diese Datei werden übersprungen.",
+    "ref": "BSI TR-03151-1"
+  },
+  "LOG_VERSION": {
+    "id": "LOG_VERSION",
+    "name": "Version = 3",
+    "rule": "Das Versionsfeld der Log-Nachricht (INTEGER) muss den Wert 3 haben.",
+    "pass_text": "Version 3 erkannt.",
+    "warn_text": "Andere Version.",
+    "ref": "BSI TR-03151-1 LogMessage §2"
+  },
+  "LOG_OID": {
+    "id": "LOG_OID",
+    "name": "certifiedDataType OID",
+    "rule": "Die Log-Nachricht muss den OID des certifiedDataType enthalten. Dieser identifiziert den Log-Typ.",
+    "erlaubte_oids": "",
+    "pass_text": "OID vorhanden und einem Log-Typ zugeordnet.",
+    "warn_text": "OID unbekannt (herstellerspezifisch möglich).",
+    "ref": "BSI TR-03151-1"
+  },
+  "LOG_SIGALG": {
+    "id": "LOG_SIGALG",
+    "name": "Signaturalgorithmus",
+    "rule": "Der Signaturalgorithmus der Log-Nachricht muss einer der BSI-konformen Varianten für Log-Signaturen sein.",
+    "erlaubte_oids_(log-signaturen,_plain_ecdsa)": "",
+    "pass_text": "OID in erlaubter Liste.",
+    "warn_text": "OID nicht in erlaubter Liste.",
+    "ref": "BSI TR-03116-5"
+  },
+  "LOG_SERIAL": {
+    "id": "LOG_SERIAL",
+    "name": "serialNumber vorhanden (32 Byte)",
+    "rule": "Das Feld serialNumber muss vorhanden sein und exakt 32 Byte lang sein (SHA-256-Hash des öffentlichen Schlüssels der TSE).",
+    "pass_text": "32 Byte serialNumber vorhanden.",
+    "warn_text": "Falsches Format oder falsche Länge.",
+    "ref": "BSI TR-03153-1 §9.3.2"
+  },
+  "LOG_SERIAL_CERT": {
+    "id": "LOG_SERIAL_CERT",
+    "name": "serialNumber = TSE-Zertifikat CN",
+    "rule": "Die serialNumber der Log-Nachricht muss mit dem CN des TSE-Blatt-Zertifikats aus der Zertifikatsdatei übereinstimmen. (Wird geprüft, wenn TSE-Zertifikat im Archiv vorhanden.)",
+    "pass_text": "serialNumber stimmt mit Zertifikat-CN überein.",
+    "fail_text": "Abweichung.",
+    "ref": "BSI TR-03153-1 §9.3.2"
+  },
+  "LOG_SIGCTR": {
+    "id": "LOG_SIGCTR",
+    "name": "signatureCounter vorhanden",
+    "rule": "Das Feld signatureCounter (INTEGER, fortlaufend) muss vorhanden sein.",
+    "pass_text": "Zählerwert wird ausgegeben.",
+    "fail_text": "Feld fehlt.",
+    "ref": "BSI TR-03153-1 §9.1"
+  },
+  "LOG_SIGTIME": {
+    "id": "LOG_SIGTIME",
+    "name": "signatureCreationTime vorhanden",
+    "rule": "Das Feld signatureCreationTime (INTEGER, Unix-Timestamp) muss vorhanden sein.",
+    "pass_text": "Zeitpunkt (formatiert) wird ausgegeben.",
+    "fail_text": "Feld fehlt.",
+    "ref": "BSI TR-03153-1 §5.2"
+  },
+  "LOG_SIGLEN": {
+    "id": "LOG_SIGLEN",
+    "name": "Signaturwert (96 Byte / P-384 plain)",
+    "rule": "Das Feld signatureValue muss vorhanden sein. Bei ECDSA-plain mit P-384 muss es exakt 96 Byte lang sein (zwei 48-Byte Koordinaten r und s, ohne ASN.1-Wrapper).",
+    "pass_text": "Signatur vorhanden, korrekte Länge.",
+    "warn_text": "Vorhanden aber unerwartete Länge.",
+    "ref": "BSI TR-03116-5"
+  },
+  "LOG_FNAME_CTR": {
+    "id": "LOG_FNAME_CTR",
+    "name": "Dateiname: Sig-{counter} stimmt",
+    "rule": "Das Sig-{N}-Segment im Dateinamen muss mit dem signatureCounter-Feld in der Log-Nachricht übereinstimmen.",
+    "pass_text": "Dateiname-Zähler = signatureCounter.",
+    "fail_text": "Abweichung.",
+    "ref": "BSI TR-03151-1 Dateinamenkonvention"
+  },
+  "LOG_FNAME_TIME": {
+    "id": "LOG_FNAME_TIME",
+    "name": "Dateiname: Zeitstempel stimmt",
+    "rule": "Der Zeitstempel im Dateinamen (Segment nach dem Zeitformat-Präfix) muss inhaltlich mit dem signatureCreationTime-Feld übereinstimmen. Prüfung erfolgt soweit das Zeitformat eine Konvertierung erlaubt.",
+    "pass_text": "Zeitstempel konsistent.",
+    "warn_text": "Abweichung oder Format nicht prüfbar.",
+    "ref": "BSI TR-03151-1 Dateinamenkonvention"
+  },
+  "LOG_FNAME_EVT": {
+    "id": "LOG_FNAME_EVT",
+    "name": "Dateiname: Log-Sys_{eventType}.log",
+    "rule": "Das _Log-Sys_{eventType}-Segment im Dateinamen muss mit dem eventType-Feld in der Log-Nachricht übereinstimmen (Groß-/Kleinschreibung unerheblich beim Vergleich).",
+    "pass_text": "Dateiname-eventType = Log-eventType.",
+    "warn_text": "Abweichung.",
+    "ref": "BSI TR-03151-1 Dateinamenkonvention SystemLog"
+  },
+  "LOG_ADD_INT": {
+    "id": "LOG_ADD_INT",
+    "name": "additionalInternalData DARF NICHT vorhanden sein",
+    "rule": "Das Feld additionalInternalData (Kontext-Tag [4], RFU – Reserved for Future Use) darf in einer gültigen SystemLogMessage **nicht** belegt sein.",
+    "pass_text": "Feld nicht vorhanden.",
+    "fail_text": "Feld vorhanden (Länge wird ausgegeben).",
+    "ref": "BSI TR-03151-1 SystemLogMessage §7 RFU"
+  },
+  "LOG_SYS_FNAME": {
+    "id": "LOG_SYS_FNAME",
+    "name": "Dateiname-Schema SystemLog",
+    "rule": "Der Dateiname einer SystemLog-Datei muss dem vollständigen Schema entsprechen.",
+    "regex": "^(Gent|Utc|Unixt)_[^_]+_Sig-\\d+_Log-Sys_[^.]+\\.log$",
+    "pass_text": "Schema korrekt.",
+    "warn_text": "Dateiname entspricht nicht dem Schema.",
+    "ref": "BSI TR-03151-1 Dateinamenkonvention SystemLog"
+  },
+  "LOG_TYPE_VALID": {
+    "id": "LOG_TYPE_VALID",
+    "name": "Ausschließlich spezifikationskonforme Log-Nachrichten-Typen",
+    "rule": "Jede Log-Datei im TAR-Archiv muss einem der folgenden zulässigen",
+    "pass_text": "Alle Log-Dateien im TAR gehören einem der definierten Typen an.",
+    "fail_text": "Mindestens eine Log-Datei kann keinem bekannten Typ zugeordnet",
+    "note": "Die Typzuordnung erfolgt primär über den Dateinamen (bestehende",
+    "ref": "BSI TR-03153-1 §9; BSI TR-03151-1 §5; EXP_LOG_18"
+  },
+  "LOG_FIELD_NO_ADD_INT": {
+    "id": "LOG_FIELD_NO_ADD_INT",
+    "name": "additionalInternalData darf in Transaktions-Log-Nachrichten nicht belegt sein",
+    "rule": "In allen Transaktions-Log-Nachrichten (startTransaction,",
+    "pass_text": "Kein additionalInternalData-Eintrag in einer der",
+    "fail_text": "Mindestens eine Transaktions-Log-Nachricht enthält einen",
+    "ref": "BSI TR-03151-1 §5.3 (TransactionLog-Struktur); EXP_LOG_23"
+  },
+  "LOG_FIELD_ADD_EXT_ABSENT": {
+    "id": "LOG_FIELD_ADD_EXT_ABSENT",
+    "name": "additionalExternalData nur vorhanden wenn Daten übergeben wurden",
+    "rule": "In Transaktions-Log-Nachrichten darf das Feld",
+    "pass_text": "Das Feld fehlt in allen Log-Nachrichten, bei denen kein Wert",
+    "fail_text": "Das Feld ist als leer oder abwesend kodiert, obwohl ein Wert",
+    "note": "Diese Prüfung ist im TAR vollständig automated, sofern bekannt",
+    "ref": "BSI TR-03151-1 §5.3; EXP_LOG_24"
+  },
+  "LOG_ASN1_NO_INDEFINITE": {
+    "id": "LOG_ASN1_NO_INDEFINITE",
+    "name": "Kein indefinite length encoding außerhalb von processData",
+    "rule": "In **allen** Log-Nachrichten darf *indefinite length encoding*",
+    "pass_text": "",
+    "fail_text": "",
+    "ref": "BSI TR-03151-1 §5.1 (ASN.1-Kodierungsregeln); EXP_LOG_28,"
+  },
+  "LOG_ASN1_PDATA_TAG_DEF": {
+    "id": "LOG_ASN1_PDATA_TAG_DEF",
+    "name": "Korrekte Struktur von processData bei definitiver Länge",
+    "rule": "Für updateTransaction-Log-Nachrichten, die processData mit",
+    "pass_text": "Alle betreffenden processData-Elemente entsprechen der",
+    "fail_text": "Mindestens ein processData-Element weicht von einem der vier",
+    "ref": "BSI TR-03151-1 §5.3 (processData-Kodierung); EXP_LOG_29,"
+  },
+  "LOG_ASN1_PDATA_TAG_INDEF": {
+    "id": "LOG_ASN1_PDATA_TAG_INDEF",
+    "name": "Korrekte Struktur von processData bei indefiniter Länge (Aggregation)",
+    "rule": "Für updateTransaction-Log-Nachrichten, die processData mit",
+    "pass_text": "Alle Aggregations-processData-Elemente entsprechen der",
+    "fail_text": "Mindestens ein Element weicht von einem Kriterium ab. Dateiname,",
+    "note": "Diese Regel gilt ausschließlich für Nachrichten, bei denen",
+    "ref": "BSI TR-03151-1 §5.3 (processData-Kodierung); EXP_LOG_31"
+  },
+  "LOG_CTR_COMPLETE": {
+    "id": "LOG_CTR_COMPLETE",
+    "name": "Lückenlose Vollständigkeit aller Signaturzähler im Export",
+    "rule": "Für alle im TAR enthaltenen Log-Nachrichten muss die Menge der",
+    "pass_text": "Die Menge der Zähler-Werte bildet eine lückenlose Sequenz",
+    "warn_text": "Mindestens ein Zähler-Wert im Intervall fehlt. Fehlende Werte",
+    "note": "Diese Regel gilt archivweit über alle Log-Typen hinweg, da der",
+    "ref": "BSI TR-03153-1 §9.3.2; BSI TR-03151-1 §4.4; EXP_LOG_22;"
+  },
+  "LOG_RECERT_FNAME_CONSISTENT": {
+    "id": "LOG_RECERT_FNAME_CONSISTENT",
+    "name": "Dateinamen-Schema bleibt nach Firmware-Update unverändert",
+    "rule": "Die Dateinamen aller Log-Nachrichten, die mit unterschiedlichen",
+    "pass_text": "Die Dateinamen-Schemata der Log-Nachrichten aus allen",
+    "fail_text": "Nach einem Firmware-Update weichen die Dateinamen vom",
+    "ref": "BSI TR-03153-1 §9.2; BSI TR-03151-1 §5.2; EXP_LOG_27"
+  },
+  "LOG_RECERT_STRUCT_CONSISTENT": {
+    "id": "LOG_RECERT_STRUCT_CONSISTENT",
+    "name": "ASN.1-Struktur bleibt nach Firmware-Update unverändert",
+    "rule": "Die ASN.1-Struktur (Felder, Tags, Kodierungsform) der Log-Nachrichten",
+    "pass_text": "Die ASN.1-Strukturen sind in allen verglichenen Versionen",
+    "fail_text": "Eine strukturelle Abweichung wird zwischen den Versionen",
+    "note": "Diese Regel prüft die Struktur, nicht die Inhaltswerte (z. B.",
+    "ref": "BSI TR-03153-1 §9.3; BSI TR-03151-1 §5.3; EXP_LOG_27"
+  },
+  "LOG_NEG_TXN": {
+    "id": "LOG_NEG_TXN",
+    "name": "Kein Transaktions-Log bei fehlgeschlagenem API-Aufruf",
+    "trigger": "Mindestens ein Eintrag in expected_absent_logs mit einem",
+    "automatisierungsgrad": "partial",
+    "rule": "Für jeden Eintrag in expected_absent_logs darf der TAR-Container",
+    "pass_text": "Kein passender Log-Eintrag im TAR gefunden.",
+    "fail_text": "Mindestens ein Log-Eintrag gefunden, der dem abwesend-erwarteten",
+    "hintergrund_–_fehlercodes": "",
+    "ref": "BSI TR-03153-1 §6.4.3; Testfälle II_FIN_04, II_FIN_06"
+  },
+  "LOG_NEG_UPD_SM": {
+    "id": "LOG_NEG_UPD_SM",
+    "name": "Kein updateTransaction-Log bei SM ohne Aggregation",
+    "trigger": "Profilkonfiguration enthält SM_NOAGG (SM ohne Aggregation) und",
+    "automatisierungsgrad": "partial",
+    "rule": "Bei aktiviertem Profil SM_NOAGG darf der TAR-Container **keine**",
+    "pass_text": "Kein ungesichertes updateTransaction-Log im TAR.",
+    "fail_text": "Mindestens ein updateTransaction-Log ohne Force-Kennzeichen",
+    "info_text": "Regel wird übersprungen (skipped), wenn Profil SM_AGG oder",
+    "ref": "BSI TR-03151-1 §5.2.2 (Aggregation); Testfall II_GLT_02"
+  },
+  "LOG_NEG_SYS": {
+    "id": "LOG_NEG_SYS",
+    "name": "Kein System-Log bei fehlgeschlagenem Systemaufruf",
+    "trigger": "Mindestens ein Eintrag in expected_absent_logs mit einem",
+    "automatisierungsgrad": "partial",
+    "rule": "Analog zu LOG_NEG_TXN: Der TAR darf keine System-Log-Datei enthalten,",
+    "pass_text": "Kein passender System-Log-Eintrag im TAR.",
+    "fail_text": "System-Log für den fehlgeschlagenen Aufruf wurde dennoch erstellt.",
+    "ref": "BSI TR-03153-1 §6.4.3; (allgemein aus Fehlerszenarien ableitbar)"
+  },
+  "LOG_EVTYPE": {
+    "id": "LOG_EVTYPE",
+    "name": "eventType vorhanden",
+    "rule": "Das Feld eventType (PrintableString, Kontext-Tag [0]) ist ein Pflichtfeld der SystemLogMessage.",
+    "pass_text": "eventType vorhanden. Bekannte TR-Events werden als solche markiert.",
+    "fail_text": "Feld fehlt.",
+    "bekannte_eventtype-werte_(bsi_tr-03153-1_§9.7/9.8)": "",
+    "ref": "BSI TR-03151-1 SystemLogMessage §3, BSI TR-03153-1 §9.7"
+  },
+  "LOG_ORIGIN": {
+    "id": "LOG_ORIGIN",
+    "name": "eventOrigin gültiger TSE-Komponentenbezeichner",
+    "rule": "eventOrigin ist bei selfTest ein **Pflichtfeld** (auch wenn es formal OPTIONAL ist), da es den Trigger-Modus bestimmt.",
+    "erlaubte_komponentenbezeichner_(global)": "device, storage, integration-interface, CSP, SMA",
+    "nicht_vorhanden": "Info-Status, kein Fehler (Feld ist OPTIONAL).",
+    "vorhanden_+_gültig_+_für_eventtype_erwartet": "pass",
+    "vorhanden_+_gültig_+_für_eventtype_nicht_erwartet": "warn",
+    "vorhanden_+_ungültiger_bezeichner": "fail",
+    "ref": "BSI TR-03151-1 SystemLogMessage §9.7 / selfTest-Sonderregel",
+    "`integration-interface`": "Externer selfTest (API-Aufruf) → pass. Implikation: eventTriggeredByUser MUSS vorhanden sein.",
+    "`sma`_oder_`csp`": "Interner selfTest (automatisch durch TSE, typisch bei Fehler) → pass. Implikation: eventTriggeredByUser DARF NICHT vorhanden sein.",
+    "anderer_gültiger_wert": "fail (für selfTest nicht erlaubt).",
+    "fehlt": "fail (Pflichtfeld bei selfTest)."
+  },
+  "LOG_TRIGGER": {
+    "id": "LOG_TRIGGER",
+    "name": "Erweiterung – Pflichtfelder je eventType (II_AUT)"
+  },
+  "LOG_EVDATA": {
+    "id": "LOG_EVDATA",
+    "name": "eventData vorhanden",
+    "rule": "Das Feld eventData (Kontext-Tag [3], EventSpecificDataPlaceholder) ist ein Pflichtfeld. Eine leere SEQUENCE (Länge 0) ist gültig.",
+    "pass_text": "Feld vorhanden (auch leer ist gültig, z.B. für startAudit, exitSecureState).",
+    "fail_text": "Feld fehlt vollständig.",
+    "ref": "BSI TR-03151-1 SystemLogMessage §6"
+  },
+  "SYSLOG_RULES": {
+    "id": "SYSLOG_RULES",
+    "name": "Erlaubte Origins und Trigger-Anforderungen je eventType",
+    "initabhängig": "Operation erfordert vorherige TSE-Initialisierung.",
+    "zeitabhängig": "Operation erfordert gesetzten Zeitstempel (updateTime",
+    "stromlosigkeitsfest": "true = Operation ist nach Stromlosigkeit und"
+  },
+  "SYS_EVT_STARTAUDIT_FIRST": {
+    "id": "SYS_EVT_STARTAUDIT_FIRST",
+    "name": "startAudit ist das erste Ereignis",
+    "rule": "Das SystemLog-Ereignis mit dem **niedrigsten signatureCounter**",
+    "pass_text": "Erste Log-Nachricht (geringster Counter) ist ein startAudit-Event.",
+    "warn_text": "Das erste Ereignis hat einen anderen eventType. Der tatsächliche",
+    "note": "Bei partiellen Exporten (Export eines Zeitbereichs) ist diese Prüfung",
+    "ref": "BSI TR-03153-1 §9.7 (startAudit); DOC_ARCH_01"
+  },
+  "SYS_EVT_SECURE_PAIRS": {
+    "id": "SYS_EVT_SECURE_PAIRS",
+    "name": "enterSecureState und exitSecureState paarweise",
+    "rule": "Jedes enterSecureState-Ereignis muss von einem nachfolgenden",
+    "pass_text": "Alle enterSecureState/exitSecureState-Paare korrekt.",
+    "warn_text": "Unbalancierte Paare (mehr exit als enter, oder enter ohne",
+    "ref": "BSI TR-03153-1 §9.7; DOC_ARCH_01"
+  },
+  "SYS_EVT_UPDATETIME_GAP": {
+    "id": "SYS_EVT_UPDATETIME_GAP",
+    "name": "Maximaler Zeitabstand zwischen updateTime-Ereignissen",
+    "rule": "Alle SystemLog-Einträge mit eventType = updateTime werden anhand",
+    "status": "Informationsmeldung (kein automatischer Pass/Fail). Der maximale,",
+    "bestanden_/_warnung": "Konfigurierbar über einen optionalen Parameter",
+    "note": "Wird kein Parameter gesetzt, ist diese Regel rein informativ.",
+    "ref": "BSI TR-03153-1 §9.8 (updateTime); DOC_TME_01, DOC_TME_02"
+  },
+  "SYS_EVT_LOGOUT_PRESENT": {
+    "id": "SYS_EVT_LOGOUT_PRESENT",
+    "name": "logOut-Ereignis im Archiv vorhanden",
+    "rule": "Das Archiv sollte mindestens ein SystemLog-Ereignis mit",
+    "pass_text": "Mindestens ein logOut-Ereignis vorhanden, wenn",
+    "warn_text": "Authentifizierungsgebundene Ereignisse im Archiv vorhanden, aber",
+    "info_text": "Keine authentifizierungsgebundenen Ereignisse im Archiv → Prüfung",
+    "ref": "BSI TR-03153-1 §9.7 (logOut); DOC_USR_02"
+  },
+  "SYS_EVT_SELFTEST_PRESENT": {
+    "id": "SYS_EVT_SELFTEST_PRESENT",
+    "name": "selfTest-Ereignis im Archiv vorhanden",
+    "rule": "Ein vollständiger Export sollte mindestens ein SystemLog-Ereignis mit",
+    "status": "Informationsmeldung. Anzahl der selfTest-Ereignisse wird ausgegeben",
+    "note": "Das Fehlen von selfTest-Ereignissen kann bei kurzen oder partiellen",
+    "ref": "BSI TR-03153-1 §9.8 (selfTest); DOC_ARCH_01"
+  },
+  "EVDATA_STARTAUDIT": {
+    "id": "EVDATA_STARTAUDIT",
+    "name": "eventData bei startAudit ist leere ASN.1-Sequenz",
+    "trigger": "SystemLog-Nachricht mit eventType = startAudit.",
+    "rule": "Das eventData-Feld muss eine leere ASN.1-SEQUENCE enthalten,",
+    "pass_text": "eventData ist eine leere ASN.1-SEQUENCE.",
+    "fail_text": "eventData fehlt oder enthält eine nicht-leere SEQUENCE",
+    "ref": "BSI TR-03151-1 SystemLogMessage eventData; SM_LOG_03"
+  },
+  "EVDATA_EXITSECURE": {
+    "id": "EVDATA_EXITSECURE",
+    "name": "eventData bei exitSecureState ist leere ASN.1-Sequenz",
+    "trigger": "SystemLog-Nachricht mit eventType = exitSecureState.",
+    "rule": "Das eventData-Feld muss eine leere ASN.1-SEQUENCE enthalten",
+    "pass_text": "eventData ist eine leere ASN.1-SEQUENCE.",
+    "fail_text": "eventData fehlt oder enthält eine nicht-leere SEQUENCE.",
+    "ref": "BSI TR-03151-1 SystemLogMessage eventData; SM_LOG_06"
+  },
+  "EVDATA_UPDATETIME": {
+    "id": "EVDATA_UPDATETIME",
+    "name": "seTimeAfterUpdate in updateTime-Ereignissen",
+    "trigger": "SystemLog-Nachricht mit eventType = updateTime.",
+    "rule": "Das eventData-Feld muss das Datenelement seTimeAfterUpdate",
+    "pass_text": "seTimeAfterUpdate ist im eventData-Feld vorhanden und",
+    "warn_text": "seTimeAfterUpdate vorhanden, aber Zeitwert nicht parsbar.",
+    "fail_text": "seTimeAfterUpdate fehlt im eventData-Feld.",
+    "ref": "BSI TR-03151-1 SystemLogMessage updateTime; SM_TME_01"
+  },
+  "EVDATA_ENTERSTATE_TIMEOFEVENT": {
+    "id": "EVDATA_ENTERSTATE_TIMEOFEVENT",
+    "name": "timeOfEvent bei enterSecureState (Format)",
+    "trigger": "SystemLog-Nachricht mit eventType = enterSecureState, in der",
+    "rule": "Falls timeOfEvent im eventData-Feld vorhanden ist, muss es",
+    "pass_text": "timeOfEvent verwendet dasselbe Format und dieselbe Zeitzone",
+    "warn_text": "timeOfEvent vorhanden, aber Format oder Zeitzone weicht ab.",
+    "note": "Die Prüfung schlägt nicht fehl, wenn timeOfEvent fehlt –",
+    "ref": "BSI TR-03151-1 SystemLogMessage enterSecureState; SM_LOG_04, SM_LOG_05"
+  },
+  "EVDATA_UNBLOCK_TRIGGER": {
+    "id": "EVDATA_UNBLOCK_TRIGGER",
+    "name": "eventTriggeredByUser in unblockPin-Logs",
+    "trigger": "SystemLog-Nachricht mit eventType = unblockUser.",
+    "rule": "Das Feld eventTriggeredByUser muss vorhanden sein und die",
+    "pass_text": "eventTriggeredByUser vorhanden und enthält einen",
+    "warn_text": "eventTriggeredByUser fehlt.",
+    "ref": "BSI TR-03151-1 SystemLogMessage unblockUser;"
+  },
+  "EVDATA_SELFTEST_TRIGGER": {
+    "id": "EVDATA_SELFTEST_TRIGGER",
+    "name": "eventTriggeredByUser im extern ausgelösten selfTest",
+    "trigger": "SystemLog-Nachricht mit eventType = selfTest und",
+    "rule": "Für extern ausgelöste Selbsttests muss eventTriggeredByUser",
+    "pass_text": "eventTriggeredByUser vorhanden und enthält einen",
+    "warn_text": "eventTriggeredByUser fehlt bei `eventOrigin =",
+    "note": "Diese Regel gilt **nicht** für interne Selbsttests",
+    "ref": "BSI TR-03151-1 SystemLogMessage selfTest;"
+  },
+  "LOG_TXN_OPTYPE": {
+    "id": "LOG_TXN_OPTYPE",
+    "name": "operationType vorhanden und gültig",
+    "rule": "Das Feld operationType (Kontext-Tag [0], PrintableString) ist ein Pflichtfeld.",
+    "allowed": "startTransaction, updateTransaction, finishTransaction",
+    "pass_text": "Wert vorhanden und in erlaubter Liste.",
+    "fail_text": "Fehlt oder ungültiger Wert.",
+    "ref": "BSI TR-03151-1 TransactionLogMessage §3"
+  },
+  "LOG_TXN_CLIENT": {
+    "id": "LOG_TXN_CLIENT",
+    "name": "clientId vorhanden",
+    "rule": "Das Feld clientId (Kontext-Tag [1], ClientId) ist ein Pflichtfeld. Enthält die Seriennummer des Kassensystems, das die Transaktion ausgelöst hat.",
+    "pass_text": "clientId vorhanden.",
+    "fail_text": "Fehlt.",
+    "ref": "BSI TR-03151-1 TransactionLogMessage §4 / BSI TR-03153-1 §5.2"
+  },
+  "LOG_TXN_PDATA": {
+    "id": "LOG_TXN_PDATA",
+    "name": "processData vorhanden",
+    "rule": "Das Feld processData (Kontext-Tag [2], OCTET STRING) ist ein Pflichtfeld. Enthält steuerlich relevante Vorgangsdaten. Der Inhalt wird als UTF-8 oder Binärdaten angezeigt.",
+    "pass_text": "Feld vorhanden (Länge und Textinhalt werden ausgegeben).",
+    "fail_text": "Fehlt.",
+    "ref": "BSI TR-03151-1 TransactionLogMessage §5 / BSI TR-03153-1 §5.2"
+  },
+  "LOG_TXN_PTYPE": {
+    "id": "LOG_TXN_PTYPE",
+    "name": "processType vorhanden, max. 100 Zeichen",
+    "rule": "Das Feld processType (Kontext-Tag [3], PrintableString SIZE 0..100) ist ein Pflichtfeld. Maximale Länge: 100 Zeichen.",
+    "pass_text": "Vorhanden und ≤ 100 Zeichen.",
+    "warn_text": "Vorhanden aber > 100 Zeichen.",
+    "fail_text": "Fehlt.",
+    "ref": "BSI TR-03151-1 TransactionLogMessage §6"
+  },
+  "LOG_TXN_EXTDATA": {
+    "id": "LOG_TXN_EXTDATA",
+    "name": "additionalExternalData (optional, info)",
+    "rule": "Das Feld additionalExternalData (Kontext-Tag [4], OCTET STRING, OPTIONAL) darf vorhanden sein.",
+    "status": "Info (kein Pass/Fail). Länge und Textinhalt werden ausgegeben.",
+    "ref": "BSI TR-03151-1 TransactionLogMessage §7"
+  },
+  "LOG_TXN_TXNNUM": {
+    "id": "LOG_TXN_TXNNUM",
+    "name": "transactionNumber vorhanden",
+    "rule": "Das Feld transactionNumber (Kontext-Tag [5], INTEGER) ist ein Pflichtfeld. Fortlaufende Nummer der Transaktion.",
+    "pass_text": "Nummer vorhanden.",
+    "fail_text": "Fehlt.",
+    "ref": "BSI TR-03151-1 TransactionLogMessage §8 / BSI TR-03153-1 §9.2"
+  },
+  "LOG_TXN_ADD_INT": {
+    "id": "LOG_TXN_ADD_INT",
+    "name": "additionalInternalData DARF NICHT vorhanden sein",
+    "rule": "Das Feld additionalInternalData (Kontext-Tag [6], OCTET STRING, RFU) darf **nicht** belegt sein.",
+    "pass_text": "Feld nicht vorhanden.",
+    "fail_text": "Feld vorhanden.",
+    "ref": "BSI TR-03151-1 TransactionLogMessage §9 RFU"
+  },
+  "LOG_TXN_FNAME": {
+    "id": "LOG_TXN_FNAME",
+    "name": "Dateiname-Schema vollständig korrekt",
+    "regex": "^(Gent|Utc|Unixt)_[^_]+_Sig-\\d+_Log-Tra_No-\\d+_(Start|Update|Finish)_Client-[^_]+(_Fc-\\d+)?\\.log$",
+    "pass_text": "Dateiname entspricht vollständig dem Schema.",
+    "warn_text": "Schema-Abweichung.",
+    "ref": "BSI TR-03151-1 Dateinamenkonvention TransactionLog"
+  },
+  "LOG_TXN_FNAME_FMT": {
+    "id": "LOG_TXN_FNAME_FMT",
+    "name": "Zeitformat-Präfix",
+    "rule": "Dateiname muss mit Gent_, Utc_ oder Unixt_ beginnen.",
+    "pass_text": "Gültiger Präfix erkannt.",
+    "fail_text": "Kein gültiger Präfix.",
+    "ref": "BSI TR-03151-1 Dateinamenkonvention"
+  },
+  "LOG_TXN_FNAME_NUM": {
+    "id": "LOG_TXN_FNAME_NUM",
+    "name": "No-{transactionNumber} stimmt",
+    "rule": "Die Zahl im No-{N}-Segment des Dateinamens muss mit dem transactionNumber-Feld aus der Log-Nachricht übereinstimmen.",
+    "regex-extraktion": "/Log-Tra_No-(\\d+)/i",
+    "pass_text": "Übereinstimmung.",
+    "fail_text": "Abweichung.",
+    "ref": "BSI TR-03151-1 Dateinamenkonvention"
+  },
+  "LOG_TXN_FNAME_TYPE": {
+    "id": "LOG_TXN_FNAME_TYPE",
+    "name": "TYPE stimmt (Start|Update|Finish)",
+    "rule": "Das TYPE-Segment im Dateinamen (zwischen No-{N}_ und _Client-) muss dem Mapping des operationType-Felds entsprechen.",
+    "regex-extraktion": "/Log-Tra_No-\\d+_(Start|Update|Finish)_Client-/i",
+    "pass_text": "TYPE entspricht dem Mapping.",
+    "fail_text": "Abweichung oder kein TYPE-Segment gefunden.",
+    "ref": "BSI TR-03151-1 Dateinamenkonvention"
+  },
+  "LOG_TXN_FNAME_CLIENT": {
+    "id": "LOG_TXN_FNAME_CLIENT",
+    "name": "Client-{clientId} stimmt",
+    "rule": "Das Client-{ID}-Segment im Dateinamen (nach dem TYPE-Segment, vor optionalem _Fc-N) muss mit dem clientId-Feld aus der Log-Nachricht übereinstimmen.",
+    "regex-extraktion": "/_(Start|Update|Finish)_Client-([^_]+?)(?:_Fc-\\d+)?\\.log$/i → Gruppe 2",
+    "pass_text": "clientId stimmt überein.",
+    "warn_text": "Abweichung.",
+    "fail_text": "Kein Client-Segment gefunden.",
+    "ref": "BSI TR-03151-1 Dateinamenkonvention"
+  },
+  "LOG_TXN_FNAME_FC": {
+    "id": "LOG_TXN_FNAME_FC",
+    "name": "Fc-{n} Kollisionszähler (optional)",
+    "trigger": "Dateiname enthält _Fc-{N} direkt vor .log.",
+    "status": "Info. Kein Pass/Fail.",
+    "inhalt": "Hinweis auf aktive Kollisionsvermeidung.",
+    "ref": "BSI TR-03151-1 Dateinamenkonvention"
+  },
+  "LOG_AUDIT_DATA": {
+    "id": "LOG_AUDIT_DATA",
+    "name": "seAuditData vorhanden",
+    "rule": "Das Feld seAuditData (OCTET STRING, direkt in der ASN.1-Struktur nach dem Signaturalgorithmus) ist ein Pflichtfeld der AuditLogMessage. Enthält CSP-spezifische Audit-Daten.",
+    "pass_text": "Feld vorhanden (Länge in Byte, ASN.1-Inhalt wenn erkannt).",
+    "fail_text": "Fehlt.",
+    "note": "Kein ASN.1-SEQUENCE-Wrapper ist möglich (herstellerspezifisches Format).",
+    "ref": "BSI TR-03151-1 AuditLogMessage ASN.1-Definition"
+  },
+  "LOG_AUDIT_NOTEMPTY": {
+    "id": "LOG_AUDIT_NOTEMPTY",
+    "name": "seAuditData nicht leer",
+    "rule": "Das seAuditData-Feld muss mindestens 1 Byte enthalten.",
+    "pass_text": "Länge > 0 Byte.",
+    "fail_text": "Länge = 0 Byte (leeres OCTET STRING).",
+    "ref": "BSI TR-03151-1 AuditLogMessage"
+  },
+  "LOG_AUDIT_NOEVT": {
+    "id": "LOG_AUDIT_NOEVT",
+    "name": "Kein certifiedData-Platzhalter",
+    "rule": "Die AuditLogMessage enthält **kein** eventType- oder eventOrigin-Feld. Diese Felder existieren nur in SystemLogMessage und TransactionLogMessage. Werden sie beim Parsen erkannt, liegt ein Formatfehler vor.",
+    "pass_text": "Weder eventType noch eventOrigin vorhanden.",
+    "warn_text": "Unerwartete Felder erkannt.",
+    "ref": "BSI TR-03151-1 AuditLogMessage (keine certifiedData-Felder)"
+  },
+  "LOG_AUDIT_FNAME": {
+    "id": "LOG_AUDIT_FNAME",
+    "name": "Dateiname-Schema AuditLog",
+    "rule": "Der Dateiname einer AuditLog-Datei muss dem Schema entsprechen.",
+    "regex": "^(Gent|Utc|Unixt)_[^_]+_Sig-\\d+_Log-Aud\\.log$",
+    "pass_text": "Schema korrekt.",
+    "warn_text": "Schema-Abweichung.",
+    "ref": "BSI TR-03151-1 Dateinamenkonvention AuditLog"
+  },
+  "TXN_LIFE_START": {
+    "id": "TXN_LIFE_START",
+    "name": "Jede transactionNumber hat genau einen Start-Eintrag",
+    "rule": "Für jede im Archiv vorkommende transactionNumber muss es **genau",
+    "pass_text": "Alle transactionNumbers haben genau einen Start-Eintrag.",
+    "fail_text": "Mindestens eine transactionNumber ohne Start-Eintrag oder mit",
+    "ref": "BSI TR-03151-1 TransactionLogMessage §3; DOC_DLY_01"
+  },
+  "TXN_LIFE_FINISH": {
+    "id": "TXN_LIFE_FINISH",
+    "name": "Jede transactionNumber hat genau einen Finish-Eintrag",
+    "rule": "Für jede im Archiv vorkommende transactionNumber muss es **genau",
+    "pass_text": "Alle transactionNumbers haben genau einen Finish-Eintrag.",
+    "warn_text": "Mindestens eine transactionNumber ohne Finish-Eintrag (offene",
+    "fail_text": "Mindestens eine transactionNumber mit mehr als einem Finish-Eintrag.",
+    "ref": "BSI TR-03151-1 TransactionLogMessage §3; DOC_DLY_01"
+  },
+  "TXN_LIFE_ORDER": {
+    "id": "TXN_LIFE_ORDER",
+    "name": "Korrekte Reihenfolge Start → Update* → Finish",
+    "rule": "Für jede transactionNumber mit vollständigem Lebenszyklus (Start +",
+    "pass_text": "Alle vollständigen Transaktionen haben eine korrekte",
+    "fail_text": "Mindestens eine Transaktion verletzt die Reihenfolge (z.B. Finish vor",
+    "ref": "BSI TR-03151-1 TransactionLogMessage; BSI TR-03153-1 §9.2; DOC_DLY_01"
+  },
+  "TXN_LIFE_NODUP_UPDATE": {
+    "id": "TXN_LIFE_NODUP_UPDATE",
+    "name": "Keine doppelten Update-Signaturen",
+    "rule": "Innerhalb einer transactionNumber darf kein signatureCounter-Wert",
+    "pass_text": "Alle Counter-Werte innerhalb jeder Transaktion sind eindeutig.",
+    "fail_text": "Doppelter signatureCounter innerhalb einer transactionNumber.",
+    "ref": "BSI TR-03153-1 §9.1; DOC_DLY_01"
+  },
+  "TXN_LIFE_TIME_ORDER": {
+    "id": "TXN_LIFE_TIME_ORDER",
+    "name": "Zeitliche Reihenfolge innerhalb einer Transaktion",
+    "rule": "Die signatureCreationTime-Werte innerhalb einer Transaktion",
+    "pass_text": "Zeitstempel innerhalb aller Transaktionen sind monoton.",
+    "warn_text": "Zeitstempel-Umkehrung innerhalb einer Transaktion. transactionNumber,",
+    "ref": "BSI TR-03153-1 §5.2; DOC_DLY_01"
+  },
+  "TXN_NUM_SEQ": {
+    "id": "TXN_NUM_SEQ",
+    "name": "transactionNumbers fortlaufend und lückenlos",
+    "rule": "Alle im Archiv vorkommenden transactionNumber-Werte (aus",
+    "vorbedingung": "Mindestens zwei startTransaction-Einträge im Archiv.",
+    "pass_text": "Die transactionNumber-Werte aller startTransaction-Logs",
+    "warn_text": "Lücken in der transactionNumber-Sequenz gefunden. Fehlende",
+    "note": "Update- und Finish-Einträge tragen dieselbe",
+    "ref": "BSI TR-03153-1 §9.2; BSI TR-03151-1 TransactionLogMessage;"
+  },
+  "TXN_NUM_UNIQUE": {
+    "id": "TXN_NUM_UNIQUE",
+    "name": "transactionNumbers eindeutig pro Start-Eintrag",
+    "rule": "Jeder transactionNumber-Wert darf unter den",
+    "pass_text": "Alle transactionNumber-Werte in startTransaction-Logs",
+    "fail_text": "Mindestens eine transactionNumber erscheint mehrfach in",
+    "ref": "BSI TR-03153-1 §9.2; SM_TRA_01, SM_TRA_02"
+  },
+  "SIG_VERIFY_LOGMSG": {
+    "id": "SIG_VERIFY_LOGMSG",
+    "name": "Kryptographische Signaturverifikation der Log-Nachrichten",
+    "rule": "Für jede Log-Nachricht im Archiv wird die Signatur (signatureValue)",
+    "vorbedingung": "Zertifikat mit öffentlichem Schlüssel im Archiv vorhanden",
+    "pass_text": "Signatur für alle Log-Nachrichten gültig.",
+    "fail_text": "Mindestens eine Signaturverifikation schlägt fehl.",
+    "note": "Schlägt die Verifikation für alle Nachrichten fehl, deutet",
+    "nur_bei": "--verify-sig-Modus aktiv.",
+    "ref": "BSI TR-03151-1 §5.3 (Signatur), §9 (Konkatenation);"
+  },
+  "SIG_VERIFY_CONCAT": {
+    "id": "SIG_VERIFY_CONCAT",
+    "name": "Korrektheit der Feldkonkatenation",
+    "rule": "Über SIG_VERIFY_LOGMSG hinaus wird explizit geprüft, ob die",
+    "pass_text": "Konkatenation reproduzierbar und Signatur gültig.",
+    "fail_text": "Rekonstruktion der Konkatenation führt zu ungültiger Signatur.",
+    "nur_bei": "--verify-sig-Modus aktiv, SIG_VERIFY_LOGMSG wird",
+    "ref": "BSI TR-03151-1 §9; SM_CON_01–SM_CON_12"
+  },
+  "SIG_CTR_OVERFLOW_CHECK": {
+    "id": "SIG_CTR_OVERFLOW_CHECK",
+    "name": "Kein signatureCounter am oder über dem Maximalwert",
+    "rule": "Kein signatureCounter-Wert im Archiv darf den vom Hersteller",
+    "parameter": "MAX_SIG_COUNTER; entnommen aus dem ICS des Herstellers",
+    "vorbedingung": "Parameter MAX_SIG_COUNTER ist dem Analyzer bekannt.",
+    "pass_text": "Kein signatureCounter-Wert erreicht oder überschreitet",
+    "warn_text": "Der höchste signatureCounter-Wert liegt bei MAX_SIG_COUNTER - 1",
+    "fail_text": "Mindestens ein signatureCounter-Wert erreicht oder überschreitet",
+    "nur_bei": "Parameter --max-sig-counter gesetzt.",
+    "note": "Ohne den Parameter wird der höchste signatureCounter-Wert",
+    "ref": "BSI TR-03153-1 §9.1; SM_SIG_05"
+  },
+  "ESN_CROSS_CERT": {
+    "id": "ESN_CROSS_CERT",
+    "name": "Seriennummer entspricht Leaf-Zertifikat-Schlüssel",
+    "rule": "Der von exportSerialNumbers zurückgegebene Hashwert muss mit dem",
+    "pass_text": "Hashwerte stimmen überein.",
+    "fail_text": "Abweichung festgestellt. Erwarteter Wert (aus Zertifikat) und",
+    "ref": "BSI TR-03151-1 §9.1; BSI TR-03153-1 §6.3.1.23 (II_ESN_03)"
+  },
+  "ESN_CROSS_LOG": {
+    "id": "ESN_CROSS_LOG",
+    "name": "Seriennummer entspricht serialNumber in Log-Nachrichten",
+    "rule": "Der von exportSerialNumbers zurückgegebene Hashwert muss",
+    "vorbedingung": "TAR-Export enthält mindestens eine geparste Log-Nachricht.",
+    "pass_text": "Alle serialNumber-Felder in den Log-Nachrichten stimmen mit",
+    "fail_text": "Mindestens eine Log-Nachricht weist eine abweichende",
+    "ref": "BSI TR-03153-1 §9.3.2; BSI TR-03151-1 §5.2; LOG_SERIAL"
+  },
+  "ESN_ASN1": {
+    "id": "ESN_ASN1",
+    "name": "ASN.1-Struktur der Seriennummer korrekt",
+    "rule": "Der Rückgabewert von exportSerialNumbers muss in der von",
+    "pass_text": "ASN.1-Dekodierung erfolgreich; genau eine Seriennummer vom",
+    "fail_text": "ASN.1-Dekodierung fehlgeschlagen, falsche Anzahl an Einträgen",
+    "ref": "BSI TR-03151-1 §9.1; BSI TR-03153-1 §6.3.1.23 (II_ESN_01,"
+  },
+  "ESN_CERT_HASH_MATCH": {
+    "id": "ESN_CERT_HASH_MATCH",
+    "name": "serialNumber entspricht Hash über öffentlichen Schlüssel",
+    "trigger": "ASN.1-Struktur aus getSerialNumbers **und** TAR aus",
+    "rule": "Für jeden serialNumberRecord-Eintrag in der",
+    "pass_text": "Hashwert stimmt für alle serialNumberRecord-Einträge überein.",
+    "fail_text": "Mindestens ein Hashwert stimmt nicht (oder kein passendes",
+    "automatisierungsgrad": "partial – Hash-Berechnung und Vergleich",
+    "ref": "BSI TR-03151-1 §4.2 (Seriennummerdefinition);"
+  },
+  "EVDATA_AUTH_RESULT": {
+    "id": "EVDATA_AUTH_RESULT",
+    "name": "authenticationResult bei Authentifizierungsereignissen",
+    "trigger": "SystemLog-Nachricht mit eventType = authenticateUser",
+    "rule": "Das eventData-Feld muss das Datenelement authenticationResult",
+    "pass_text": "authenticationResult vorhanden und ist ein gültiger BOOLEAN-Wert.",
+    "fail_text": "authenticationResult fehlt oder ist kein BOOLEAN.",
+    "ref": "BSI TR-03151-1 SystemLogMessage authenticateUser/authenticateSmaAdmin; SM_LOG_01, SM_LOG_02"
+  },
+  "EVDATA_AUTH_RETRIES": {
+    "id": "EVDATA_AUTH_RETRIES",
+    "name": "remainingRetries bei fehlgeschlagener Authentifizierung",
+    "trigger": "SystemLog-Nachricht mit eventType = authenticateUser oder",
+    "rule": "Wenn die Authentifizierung fehlgeschlagen ist",
+    "pass_text": "remainingRetries ist vorhanden und ist ein nicht-negativer INTEGER.",
+    "warn_text": "authenticationResult = FALSE, aber remainingRetries fehlt.",
+    "note": "Bei authenticationResult = TRUE ist remainingRetries",
+    "ref": "BSI TR-03151-1 SystemLogMessage; SM_LOG_02"
+  },
+  "EVDATA_AUTH_RESULT_VALUES": {
+    "id": "EVDATA_AUTH_RESULT_VALUES",
+    "name": "Zulässige Werte für authenticationResult",
+    "trigger": "SystemLog-Nachricht mit eventType = authenticateUser.",
+    "rule": "Der Wert des ASN.1-BOOLEAN-Felds authenticationResult im",
+    "pass_text": "authenticationResult enthält einen der vier zulässigen",
+    "fail_text": "authenticationResult enthält einen anderen Wert oder ist nicht",
+    "note": "Die bestehende Regel EVDATA_AUTH_RESULT prüft lediglich das",
+    "ref": "BSI TR-03153-1 §6.3.1; BSI TR-03151-1 SystemLogMessage"
+  },
+  "EVDATA_AUTH_RETRIES_MAX": {
+    "id": "EVDATA_AUTH_RETRIES_MAX",
+    "name": "remainingRetries = ICS-Maximalwert nach Erfolg",
+    "trigger": "SystemLog-Nachricht mit eventType = authenticateUser und",
+    "rule": "Das Feld remainingRetries muss nach einer **erfolgreichen**",
+    "parameter": "MAX_PIN_RETRIES; aus dem ICS des Herstellers entnommen",
+    "pass_text": "remainingRetries entspricht MAX_PIN_RETRIES.",
+    "warn_text": "remainingRetries kleiner als MAX_PIN_RETRIES trotz",
+    "note": "Ohne den Parameter wird der Wert informationshalber ausgegeben",
+    "ref": "BSI TR-03153-1 §6.3.1.1; II_AUT_01, II_AUT_20"
+  },
+  "EVDATA_AUTH_RETRIES_DECREMENT": {
+    "id": "EVDATA_AUTH_RETRIES_DECREMENT",
+    "name": "remainingRetries dekrementiert bei Fehler",
+    "trigger": "SystemLog-Nachricht mit eventType = authenticateUser und",
+    "rule": "Der Wert von remainingRetries muss um genau 1 kleiner sein als",
+    "pass_text": "Dekrementierung um genau 1 verifiziert.",
+    "warn_text": "Keine Vorgängernachricht für diesen Nutzer im Archiv vorhanden",
+    "fail_text": "Dekrementierung weicht ab.",
+    "note": "Diese Prüfung ist archivabhängig. Ohne Vorgängerdaten nur",
+    "ref": "BSI TR-03153-1 §6.3.1.1; II_AUT_03"
+  },
+  "EVDATA_AUTH_RETRIES_ZERO_BLOCKED": {
+    "id": "EVDATA_AUTH_RETRIES_ZERO_BLOCKED",
+    "name": "remainingRetries = 0 bei pinBlocked",
+    "trigger": "SystemLog-Nachricht mit eventType = authenticateUser und",
+    "rule": "Das Feld remainingRetries muss den Wert 0 enthalten. Eine",
+    "pass_text": "remainingRetries = 0.",
+    "fail_text": "remainingRetries > 0 trotz pinBlocked.",
+    "ref": "BSI TR-03153-1 §6.3.1.1; II_AUT_04, II_AUT_05"
+  },
+  "EVDATA_AUTH_TRIGGER": {
+    "id": "EVDATA_AUTH_TRIGGER",
+    "name": "eventTriggeredByUser in authenticateUser-Logs",
+    "trigger": "SystemLog-Nachricht mit eventType = authenticateUser.",
+    "rule": "Das Feld eventTriggeredByUser muss vorhanden sein und den",
+    "pass_text": "eventTriggeredByUser ist vorhanden und enthält einen der",
+    "warn_text": "eventTriggeredByUser fehlt (gemäß der bestehenden",
+    "fail_text": "eventTriggeredByUser ist vorhanden, aber enthält keinen",
+    "ref": "BSI TR-03151-1 SystemLogMessage §4; BSI TR-03153-1 §6.3.1.1;"
+  },
+  "EVDATA_LOGOUT_USERID": {
+    "id": "EVDATA_LOGOUT_USERID",
+    "name": "loggedOutUserId im logOut-Log vorhanden",
+    "trigger": "SystemLog-Nachricht mit eventType = logOut.",
+    "rule": "Das eventData-Feld muss das Datenelement loggedOutUserId",
+    "pass_text": "loggedOutUserId vorhanden und nicht leer.",
+    "fail_text": "loggedOutUserId fehlt im eventData-Feld.",
+    "ref": "BSI TR-03151-1 SystemLogMessage logOut; II_AUT_17_B,"
+  },
+  "EVDATA_LOGOUT_CASE": {
+    "id": "EVDATA_LOGOUT_CASE",
+    "name": "logOutCase-Wert im logOut-Log",
+    "trigger": "SystemLog-Nachricht mit eventType = logOut.",
+    "rule": "Das eventData-Feld muss das Datenelement logOutCase",
+    "pass_text": "logOutCase vorhanden und enthält einen zulässigen Wert.",
+    "warn_text": "logOutCase enthält einen unbekannten Wert (nicht in der",
+    "fail_text": "logOutCase fehlt.",
+    "ref": "BSI TR-03151-1 SystemLogMessage logOut; II_AUT_18_A–18_F"
+  },
+  "EVDATA_LOGOUT_NO_TRIGGER_IMPLICIT": {
+    "id": "EVDATA_LOGOUT_NO_TRIGGER_IMPLICIT",
+    "name": "Kein eventTriggeredByUser bei impliziter Abmeldung",
+    "trigger": "SystemLog-Nachricht mit eventType = logOut und",
+    "rule": "Wenn die Abmeldung implizit durch den Systemvorgang",
+    "pass_text": "eventTriggeredByUser ist nicht vorhanden.",
+    "fail_text": "eventTriggeredByUser ist vorhanden, obwohl",
+    "ref": "BSI TR-03151-1 SystemLogMessage logOut; II_AUT_18_A–18_F"
+  },
+  "EVDATA_LOGOUT_ORIGIN_IMPLICIT": {
+    "id": "EVDATA_LOGOUT_ORIGIN_IMPLICIT",
+    "name": "eventOrigin bei impliziter Abmeldung",
+    "trigger": "SystemLog-Nachricht mit eventType = logOut und",
+    "rule": "Bei einer impliziten Abmeldung muss eventOrigin den Wert",
+    "pass_text": "eventOrigin = device oder SMA.",
+    "fail_text": "eventOrigin = integration-interface bei",
+    "ref": "BSI TR-03151-1 SystemLogMessage logOut; BSI TR-03153-1 §9.7;"
+  },
+  "EVDATA_LOGOUT_TRIGGER_EXPLICIT": {
+    "id": "EVDATA_LOGOUT_TRIGGER_EXPLICIT",
+    "name": "eventTriggeredByUser bei expliziter Abmeldung",
+    "trigger": "SystemLog-Nachricht mit eventType = logOut und",
+    "rule": "Bei einer expliziten Abmeldung über den API-Aufruf logOut",
+    "pass_text": "eventTriggeredByUser vorhanden und enthält einen bekannten",
+    "warn_text": "eventTriggeredByUser fehlt bei expliziter Abmeldung.",
+    "ref": "BSI TR-03151-1 SystemLogMessage logOut; II_AUT_17_B"
+  },
+  "IMPLICIT_LOGOUT_PRESENT": {
+    "id": "IMPLICIT_LOGOUT_PRESENT",
+    "name": "Implizites logOut-Log bei Nutzerwechsel vorhanden",
+    "rule": "Wenn im Archiv eine authenticateUser-Log-Nachricht für",
+    "prüfung": "",
+    "pass_text": "Für jeden erkannten Nutzerwechsel ist das zugehörige",
+    "warn_text": "Nutzerwechsel erkannt, aber kein passendes implizites",
+    "ref": "BSI TR-03153-1 §9.7; BSI TR-03151-1 §5.2.2;"
+  },
+  "IMPLICIT_LOGOUT_ABSENT_SAME_USER": {
+    "id": "IMPLICIT_LOGOUT_ABSENT_SAME_USER",
+    "name": "Kein implizites logOut bei Neuauth desselben Nutzers",
+    "rule": "Wenn ein Nutzer sich erneut authentifiziert (authenticateUser",
+    "prüfung": "Für jedes authenticateUser-Paar mit gleichem userId",
+    "pass_text": "Kein implizites logOut für denselben Nutzer gefunden.",
+    "warn_text": "Implizites logOut für denselben Nutzer gefunden, obwohl",
+    "ref": "BSI TR-03153-1 §9.7; II_AUT_18_G, II_AUT_18_H,"
+  },
+  "TIME_SM_UNSET": {
+    "id": "TIME_SM_UNSET",
+    "name": "Erkennung einer „Nicht-Stellung\" der Uhrzeit",
+    "trigger": "Log-Nachricht, deren signatureCreationTime einen Wert enthält,",
+    "rule": "Der Analyzer erkennt folgende Sentinel-Werte als potenzielle",
+    "warn_text": "Mindestens ein signatureCreationTime-Wert weist auf eine",
+    "info_text": "Kein auffälliger Zeitwert gefunden.",
+    "note": "Das Auftreten einer „Nicht-Stellung\" ist kein zwangsläufiger",
+    "ref": "BSI TR-03153-1; BSI TR-03151-1 signatureCreationTime; SM_TME_10"
+  },
+  "TIME_SM_UPDATE_DELAY": {
+    "id": "TIME_SM_UPDATE_DELAY",
+    "name": "Maximaler Abstand zwischen Update-Logs einer Transaktion",
+    "rule": "Das Feld eventTriggeredByUser muss den Wert centraltimeadmin",
+    "parameter": "MAX_UPDATE_DELAY in Sekunden; entnommen aus dem ICS",
+    "vorbedingung": "Parameter MAX_UPDATE_DELAY ist dem Analyzer bekannt",
+    "pass_text": "eventTriggeredByUser = centraltimeadmin.",
+    "fail_text": "Anderer Wert oder Feld fehlt.",
+    "nur_bei": "Parameter --max-update-delay gesetzt.",
+    "note": "Ohne den Parameter wird diese Prüfung nicht durchgeführt,",
+    "ref": "II_UDT_07 Schritt 4",
+    "trigger": "SystemLog mit eventType = updateTime und eventOrigin = CSP.",
+    "automatisierungsgrad": "true"
+  },
+  "TIMESET_TXN_AFTER_UPDATETIME": {
+    "id": "TIMESET_TXN_AFTER_UPDATETIME",
+    "name": "Alle TransactionLog-Einträge nach erstem updateTime",
+    "trigger": "TAR-Archiv mit mindestens einem TransactionLog-Eintrag",
+    "rule": "Jeder TransactionLog-Eintrag muss einen signatureCounter-Wert",
+    "formal": "Sei MinUTC = min({c | SystemLog mit eventType=updateTime, signatureCounter=c}).",
+    "pass_text": "Alle TransactionLog-Einträge haben signatureCounter > MinUTC.",
+    "fail_text": "Ein oder mehrere TransactionLog-Einträge haben",
+    "sonderfall_–_kein_`updatetime`_vorhanden": "Wenn TransactionLog-Einträge",
+    "note": "Bei partiellen Exporten (nicht ab dem Beginn der Protokollierung)",
+    "ref": "BSI TR-03153-1 §6.3.1 (ErrorTimeNotSet-Semantik);"
+  },
+  "TIMESET_SYSLOG_WRITES_AFTER_UPDATETIME": {
+    "id": "TIMESET_SYSLOG_WRITES_AFTER_UPDATETIME",
+    "name": "Zeitabhängige SystemLog-Ereignisse nach updateTime",
+    "trigger": "TAR-Archiv mit SystemLog-Einträgen der zeitabhängigen Typen",
+    "rule": "SystemLog-Einträge der folgenden zeitabhängigen eventType-Werte",
+    "pass_text": "Alle SystemLog-Einträge der genannten Typen haben",
+    "fail_text": "Mindestens ein Eintrag der genannten Typen hat",
+    "sonderfall_–_kein_`updatetime`_vorhanden": "Wenn SystemLog-Einträge der",
+    "note": "lockTransactionLogging und unlockTransactionLogging sind",
+    "ref": "BSI TR-03153-1 §6.3.1; II_ERR_02_A (setDescription),"
+  },
+  "TIMESET_SELFTEST_MAY_PRECEDE_UPDATETIME": {
+    "id": "TIMESET_SELFTEST_MAY_PRECEDE_UPDATETIME",
+    "name": "selfTest ist zeitunabhängig (info)",
+    "typ": "Informationsmeldung (kein Pass/Fail).",
+    "trigger": "TAR-Archiv mit SystemLog-Eintrag eventType = selfTest",
+    "rule": "Ein selfTest-Ereignis vor dem ersten updateTime ist",
+    "ausgabe": "Anzahl der selfTest-Einträge vor MinUTC; Hinweis auf",
+    "ref": "BSI TR-03153-1 §6.3.1; BSI TR-03151-1 SystemLogMessage selfTest;"
+  },
+  "TIMESET_EXPORT_ANYTIME": {
+    "id": "TIMESET_EXPORT_ANYTIME",
+    "name": "Export-Funktionen sind zeitunabhängig (info)",
+    "typ": "Informationsmeldung (kein Pass/Fail).",
+    "hintergrund": "Die Funktionen exportLogMessages, exportLoggingCertificates,",
+    "implikation_für_den_analyzer": "Das Vorliegen eines TAR-Exports ist",
+    "ausgabe": "Info-Meldung, dass Export-Funktionen unabhängig vom Zeitstatus",
+    "ref": "Abwesenheit von Export-Funktionen in II_ERR_02; BSI TR-03153-1"
+  },
+  "INIT_SEQ_TXN_AFTER_INIT": {
+    "id": "INIT_SEQ_TXN_AFTER_INIT",
+    "name": "Alle TransactionLog-Einträge nach initialize",
+    "trigger": "TAR-Archiv mit TransactionLog-Einträgen **und** einem",
+    "rule": "Jeder TransactionLog-Eintrag muss einen signatureCounter-Wert",
+    "formal": "Sei CtrInit der signatureCounter des initialize-Eintrags",
+    "pass_text": "Alle TransactionLog-Einträge haben signatureCounter > CtrInit.",
+    "fail_text": "Mindestens ein TransactionLog-Eintrag hat",
+    "note": "Wenn kein initialize-Eintrag im Archiv vorhanden ist (partieller",
+    "ref": "BSI TR-03153-1 §6.3 (initialize-Semantik); BSI TR-03151-1"
+  },
+  "INIT_SEQ_UPDATETIME_AFTER_INIT": {
+    "id": "INIT_SEQ_UPDATETIME_AFTER_INIT",
+    "name": "updateTime muss nach initialize liegen",
+    "trigger": "TAR-Archiv mit sowohl initialize- als auch",
+    "rule": "Der kleinste signatureCounter aller updateTime-Einträge muss",
+    "formal": "MinUTC > CtrInit.",
+    "pass_text": "MinUTC > CtrInit.",
+    "fail_text": "MinUTC ≤ CtrInit (ein updateTime-Eintrag liegt vor oder beim",
+    "ref": "BSI TR-03151-1 §5.2; BSI TR-03153-1 §6.3; II_ERR_01_L"
+  },
+  "INIT_SEQ_COMPLETE_ORDER": {
+    "id": "INIT_SEQ_COMPLETE_ORDER",
+    "name": "Vollständige Betriebsreihenfolge im Archiv",
+    "trigger": "TAR-Archiv, das mindestens die Ereignisse startAudit,",
+    "rule": "Die kombinierte Reihenfolge-Anforderung lautet:",
+    "einzelprüfungen": "",
+    "status": "Diese Regel fasst die Einzelprüfungen zusammen und gibt",
+    "pass_text": "Alle Teilbedingungen erfüllt.",
+    "fehler/warnung": "Gemäß der jeweils verletzten Einzelregel.",
+    "note": "Bei partiellen Exporten ist diese Gesamtprüfung auf die",
+    "ref": "BSI TR-03151-1 §5.2; BSI TR-03153-1 §6.3–§9.7;"
+  },
+  "INIT_SEQ_SYSLOG_EVENTTYPE_INIT_DEPENDENCY": {
+    "id": "INIT_SEQ_SYSLOG_EVENTTYPE_INIT_DEPENDENCY",
+    "name": "Zeitabhängige SystemLog-Typen prüfen",
+    "trigger": "Jeder SystemLog-Eintrag im TAR-Archiv.",
+    "rule": "Der Analyzer klassifiziert jeden SystemLog-Eintrag anhand seiner",
+    "typ": "Informationsmeldung (kein automatischer Pass/Fail); ermöglicht",
+    "ref": "Vergleich II_ERR_01 vs. II_ERR_02; BSI TR-03153-1 §6.3"
+  },
+  "POWERLOSS_UPDATETIME_AFTER_REENTER": {
+    "id": "POWERLOSS_UPDATETIME_AFTER_REENTER",
+    "name": "Neue Zeitsetzung nach Stromlosigkeit",
+    "trigger": "TAR-Archiv mit einem erkannten Stromlosigkeits-Zyklus",
+    "rule": "Nach dem enterSecureState-Ereignis eines Stromlosigkeits-Zyklus",
+    "formal": "Sei E der signatureCounter des enterSecureState-Ereignisses",
+    "pass_text": "Für jeden erkannten Stromlosigkeits-Zyklus existiert ein",
+    "fail_text": "Kein updateTime-Eintrag nach enterSecureState (Counter > E),",
+    "warn_text": "Kein updateTime-Eintrag und keine TransactionLog-Einträge",
+    "ref": "BSI TR-03153-1 §6.3.1; BSI TR-03151-1 §5.2.3; II_ERR_03_H"
+  },
+  "POWERLOSS_NO_ABANDONED_TXN_RESUME": {
+    "id": "POWERLOSS_NO_ABANDONED_TXN_RESUME",
+    "name": "Keine Fortsetzung von Transaktionen nach Stromlosigkeit",
+    "trigger": "TAR-Archiv mit einem erkannten Stromlosigkeits-Zyklus und",
+    "rule": "Eine Transaktion, die vor dem Stromausfall gestartet wurde",
+    "prüfung": "",
+    "pass_text": "Keine solchen Einträge gefunden. Anzahl der aufgegebenen",
+    "fail_text": "updateTransaction- oder finishTransaction-Eintrag für eine",
+    "note": "Dieser Fehler weist auf eine schwerwiegende Implementierungslücke",
+    "ref": "BSI TR-03153-1 §6.3; BSI TR-03151-1 §5.3;"
+  },
+  "POWERLOSS_LOCK_STATE_RESET": {
+    "id": "POWERLOSS_LOCK_STATE_RESET",
+    "name": "Sperrzustand nach Stromlosigkeit zurückgesetzt",
+    "trigger": "TAR-Archiv mit einem erkannten Stromlosigkeits-Zyklus, einem",
+    "rule": "Ein aktiver Sperrzustand (lockTransactionLogging vor dem",
+    "pass_text": "Warnung/Info: Aktiver Sperrzustand vor Stromausfall erkannt.",
+    "fail_text": "Wenn nach enterSecureState ein lockTransactionLogging-Log",
+    "note": "Diese Regel ergänzt die bestehenden LOCK_EVT_*-Regeln im",
+    "ref": "BSI TR-03151-1 §5.4 lockTransactionLogging; BSI TR-03153-1 §6.3;"
+  },
+  "POWERLOSS_MULTIPLE_CYCLES": {
+    "id": "POWERLOSS_MULTIPLE_CYCLES",
+    "name": "Mehrere Stromlosigkeits-Zyklen erkannt (info/statistik)",
+    "typ": "Informationsmeldung mit optionaler Warnungseskalation.",
+    "trigger": "TAR-Archiv mit mehr als einem Stromlosigkeits-Zyklus.",
+    "rule": "Jeder erkannte Stromlosigkeits-Zyklus wird einzeln ausgewertet.",
+    "ausgabe": "Anzahl der Stromlosigkeits-Zyklen; für jeden Zyklus:",
+    "warn_text": "Mehr als 3 Stromlosigkeits-Zyklen im Archiv (Hinweis auf",
+    "ref": "BSI TR-03151-1 §5.2; BSI TR-03153-1 §9.7; SYS_EVT_SECURE_PAIRS"
+  },
+  "REG_LOG_CLIENTID_PRESENT": {
+    "id": "REG_LOG_CLIENTID_PRESENT",
+    "name": "clientId des registrierten Systems in Logs vorhanden",
+    "rule": "Nach registerClient und der Durchführung mindestens einer",
+    "prüfung": "Die übergebene Client-Seriennummer wird gegen die clientId-",
+    "pass_text": "Mindestens eine Transaktions-Log-Nachricht mit der erwarteten",
+    "fail_text": "Keine Transaktions-Log-Nachricht mit der erwarteten clientId",
+    "ref": "BSI TR-03151-1 §5.2.1; BSI TR-03153-1 §6.3.1; LOG_TXN_CLIENT"
+  },
+  "REG_LOG_NO_UNKNOWN_CLIENTS": {
+    "id": "REG_LOG_NO_UNKNOWN_CLIENTS",
+    "name": "Keine Transaktionen von nicht registrierten Clients",
+    "rule": "Alle clientId-Felder in Transaktions-Log-Nachrichten des",
+    "pass_text": "Alle clientId-Werte in Transaktions-Logs sind bekannt.",
+    "warn_text": "Unbekannte clientId-Werte gefunden. Betroffene Werte und",
+    "ref": "BSI TR-03153-1 §6.3.1; BSI TR-03151-1 §5.2.1"
+  },
+  "DEREG_LOG_NO_NEW_TXN": {
+    "id": "DEREG_LOG_NO_NEW_TXN",
+    "name": "Kein Transaktionslog nach Deregistrierung",
+    "rule": "Nach deregisterClient darf das deregistrierte Aufzeichnungssystem",
+    "pass_text": "Keine Transaktions-Logs der deregistrierten clientId nach",
+    "fail_text": "Transaktions-Logs der deregistrierten clientId nach dem",
+    "ref": "BSI TR-03153-1 §6.3.1; BSI TR-03151-1 §5.2.1"
+  },
+  "LOCK_EVT_PRESENT": {
+    "id": "LOCK_EVT_PRESENT",
+    "name": "System-Log-Ereignis für Lock vorhanden",
+    "rule": "Im TAR-Export nach lockTransactionLogging muss mindestens eine",
+    "pass_text": "Mindestens eine System-Log-Nachricht mit dem Sperrereignis",
+    "fail_text": "Kein passendes System-Log-Sperrereignis im TAR gefunden.",
+    "ref": "BSI TR-03151-1 §5.2.2; BSI TR-03153-1 §6.3.1; SYS_EVT_*"
+  },
+  "LOCK_EVT_NO_NEW_TXN": {
+    "id": "LOCK_EVT_NO_NEW_TXN",
+    "name": "Keine neuen Transaktions-Logs nach Lock",
+    "rule": "Im TAR-Export nach lockTransactionLogging dürfen keine",
+    "pass_text": "Alle Transaktions-Logs haben einen signatureCounter ≤ dem des",
+    "fail_text": "Transaktions-Log-Nachrichten nach dem Lock-Ereignis gefunden.",
+    "ref": "BSI TR-03153-1 §6.3.1; BSI TR-03151-1 §5.4"
+  },
+  "UNLOCK_EVT_PRESENT": {
+    "id": "UNLOCK_EVT_PRESENT",
+    "name": "System-Log-Ereignis für Unlock vorhanden",
+    "rule": "Im TAR-Export nach unlockTransactionLogging muss mindestens eine",
+    "pass_text": "Mindestens eine System-Log-Nachricht mit dem Entsperrereignis",
+    "fail_text": "Kein passendes System-Log-Entsperrereignis im TAR gefunden.",
+    "ref": "BSI TR-03151-1 §5.2.2; BSI TR-03153-1 §6.3.1; SYS_EVT_*"
+  },
+  "UNLOCK_EVT_LOCK_PRECEDES": {
+    "id": "UNLOCK_EVT_LOCK_PRECEDES",
+    "name": "Lock-Ereignis geht Unlock voraus",
+    "rule": "Im TAR-Export nach unlockTransactionLogging muss ein",
+    "pass_text": "Lock-Ereignis mit kleinerem signatureCounter als das",
+    "fail_text": "Kein vorausgehendes Lock-Ereignis gefunden oder Lock-Ereignis hat",
+    "ref": "BSI TR-03151-1 §5.4; BSI TR-03153-1 §6.3.1"
+  },
+  "STOR_EVT_UPDATETIME_PRESENT": {
+    "id": "STOR_EVT_UPDATETIME_PRESENT",
+    "name": "Mindestens ein updateTime-SystemLog vorhanden",
+    "rule": "Ein vollständiger TAR-Export, der nach mindestens einer Aktualisierung",
+    "erkennung": "SystemLog-Dateien werden anhand des Dateinamens (Log-Sys_updateTime",
+    "pass_text": "Mindestens eine SystemLog-Datei mit eventType = updateTime",
+    "warn_text": "Keine SystemLog-Datei mit eventType = updateTime vorhanden,",
+    "info_text": "Kein updateTime-Ereignis erkennbar – Prüfung nicht anwendbar (z.B.",
+    "note": "Diese Regel ist eine Mindeststärke-Prüfung: Sie stellt sicher,",
+    "ref": "BSI TR-03151-1 SystemLogMessage updateTime; STO_FUN_07"
+  },
+  "STOR_EVT_SYSLOG_NOT_AGGREGATED": {
+    "id": "STOR_EVT_SYSLOG_NOT_AGGREGATED",
+    "name": "SystemLog-Nachrichten werden nicht aggregiert",
+    "rule": "Jeder API-Aufruf, der eine SystemLog-Nachricht erzeugt, muss zu genau",
+    "pass_text": "Keine Lücken im SystemLog-Zählerbereich; alle erwarteten",
+    "warn_text": "Mindestens ein Zählerwert, bei dem ein SystemLog erwartet würde",
+    "note": "Diese Regel ist eine Spezialisierung von CROSS_LOG_CTR_GAPS",
+    "ref": "BSI TR-03151-1 §4; BSI TR-03153-1 §9.7; STO_FUN_07, STO_FUN_08"
+  },
+  "STOR_EVT_INIT_UNIQUE": {
+    "id": "STOR_EVT_INIT_UNIQUE",
+    "name": "Genau ein initialize-SystemLog im Archiv",
+    "rule": "Die Initialisierung einer TSE (eventType = initialize) kann pro",
+    "pass_text": "",
+    "fail_text": "Mehr als eine SystemLog-Datei mit eventType = initialize vorhanden.",
+    "note": "Diese Regel ergänzt die bestehende SYSLOG_RULES-Tabelle. Der",
+    "ref": "BSI TR-03151-1 SystemLogMessage initialize; BSI TR-03153-1 §9.7;"
+  },
+  "STOR_EVT_DISABLE_IS_LAST": {
+    "id": "STOR_EVT_DISABLE_IS_LAST",
+    "name": "disableSecureElement hat den höchsten signatureCounter",
+    "rule": "Eine SystemLog-Nachricht mit eventType = disableSecureElement",
+    "formal": "Sei D der signatureCounter-Wert der disableSecureElement-Nachricht",
+    "pass_text": "disableSecureElement-Nachricht vorhanden und",
+    "fail_text": "Mindestens eine Log-Nachricht mit einem höheren signatureCounter",
+    "info_text": "Keine disableSecureElement-Nachricht im Archiv – Prüfung nicht",
+    "note": "Diese Regel kooperiert mit dem SYSLOG_RULES-Update der SM-Erweiterung,",
+    "ref": "BSI TR-03151-1 SystemLogMessage disableSecureElement;"
+  },
+  "STOR_EVT_SYSLOG_EVTYPE_STATS": {
+    "id": "STOR_EVT_SYSLOG_EVTYPE_STATS",
+    "name": "Statistik der SystemLog-Ereignistypen (Info)",
+    "typ": "Informationsmeldung, kein Pass/Fail.",
+    "inhalt": "Der Analyzer gibt für alle im Archiv vorkommenden",
+    "nutzen": "Prüfer können erkennen, ob für jeden erwarteten API-Aufruf",
+    "ref": "BSI TR-03151-1 §4; BSI TR-03153-1 §9.7; STO_FUN_07,"
+  },
+  "STOR_AUDIT_MIN_ONE": {
+    "id": "STOR_AUDIT_MIN_ONE",
+    "name": "Mindestens eine AuditLog-Datei vorhanden",
+    "rule": "Ein vollständiger TAR-Export einer TSE, die nach der Initialisierung",
+    "pass_text": "Mindestens eine AuditLog-Datei vorhanden. Anzahl und",
+    "warn_text": "Keine AuditLog-Datei im TAR. Mögliche Ursachen:",
+    "note": "Diese Regel ist eine Warnung (kein Fehler), da partielle Exporte",
+    "ref": "BSI TR-03151-1 AuditLogMessage; BSI TR-03153-1 §9.7; STO_FUN_11"
+  },
+  "STOR_AUDIT_SYSLOG_RATIO": {
+    "id": "STOR_AUDIT_SYSLOG_RATIO",
+    "name": "Verhältnis AuditLog zu SystemLog (Info)",
+    "typ": "Informationsmeldung, kein automatischer Pass/Fail.",
+    "inhalt": "Für ein vollständiges Archiv werden ausgegeben:",
+    "nutzen": "Prüfer können die erwartete Anzahl von AuditLogs (mindestens",
+    "ref": "BSI TR-03151-1; BSI TR-03153-1 §9.7; STO_FUN_11"
+  },
+  "STOR_AGG_UPDATE_PRESENT_AFTER_FINISH": {
+    "id": "STOR_AGG_UPDATE_PRESENT_AFTER_FINISH",
+    "name": "Aggregierter Update-Log nach finishTransaction vorhanden",
+    "rule": "Für jede Transaktion, bei der mindestens ein updateTransaction-Aufruf",
+    "pass_text": "Für alle vollständigen Transaktionslebenszyklen (Start + Finish",
+    "warn_text": "Eine transactionNumber mit Start- und Finish-Log besitzt keine",
+    "note": "Diese Regel ergänzt TXN_LIFE_* und AGG_UPDATE_ABSENT. Ohne",
+    "ref": "BSI TR-03151-1 §4.3 (Aggregation); BSI TR-03153-1 §9.2;"
+  },
+  "STOR_AGG_COUNT_PER_TXN": {
+    "id": "STOR_AGG_COUNT_PER_TXN",
+    "name": "Genau ein aggregiertes Update-Log pro Transaktion (SM_AGG)",
+    "rule": "Für Transaktionen im SM_AGG-Modus (Aggregation aktiv), bei denen",
+    "pass_text": "Für alle vollständig exportierten SM_AGG-Transaktionen mit",
+    "fail_text": "Mehr als eine Update-Log-Datei für eine SM_AGG-Transaktion vorhanden,",
+    "warn_text": "Keine Update-Log-Datei für eine Transaktion mit Finish-Log vorhanden",
+    "note": "Diese Prüfung ist nur vollständig automatisierbar, wenn der Analyzer",
+    "ref": "BSI TR-03151-1 §4.3 (Aggregation); STO_FUN_01, STO_FUN_03,"
+  },
+  "STOR_AGG_SEQ_DELTA": {
+    "id": "STOR_AGG_SEQ_DELTA",
+    "name": "Differenz sequentieller TAR-Exporte zeigt Aggregationsverhalten (Multi-TAR)",
+    "rule": "Werden dem Analyzer **zwei aufeinanderfolgende TAR-Exporte** derselben",
+    "prüfung": "Die Differenz der Log-Dateilisten beider Archive wird gebildet.",
+    "pass_text": "Alle drei Bedingungen erfüllt. Dateiname und Counter des neu",
+    "fail_text": "Bedingung 1 verletzt (Update-Log bereits in TAR_pre vorhanden)",
+    "nur_bei": "Zwei TAR-Archive derselben TSE per --compare-tar=TAR_pre übergeben.",
+    "note": "Diese Regel ist das Multi-TAR-Pendant zu AGG_UPDATE_ABSENT",
+    "ref": "BSI TR-03151-1 §4.3; STO_FUN_01, STO_FUN_03, STO_FUN_05"
+  },
+  "STOR_NOAGG_UPDATE_PER_CALL": {
+    "id": "STOR_NOAGG_UPDATE_PER_CALL",
+    "name": "Jeder updateTransaction-Aufruf erzeugt genau eine Update-Log-Datei",
+    "rule": "Für Transaktionen im SM_NOAGG-Modus (kein forceSignature, da jeder",
+    "pass_text": "Für alle SM_NOAGG-Transaktionen gilt die Eins-zu-eins-Beziehung.",
+    "warn_text": "Mehr oder weniger Update-Log-Dateien als erwartet.",
+    "note": "Ohne Testablauf-Metadaten (K ist unbekannt) kann der Analyzer nicht",
+    "ref": "BSI TR-03151-1 §4.3; STO_FUN_02, STO_FUN_04, STO_FUN_06;"
+  },
+  "STOR_NOAGG_PDATA_SINGLE": {
+    "id": "STOR_NOAGG_PDATA_SINGLE",
+    "name": "processData eines nicht-aggregierten Update-Logs ist ein einzelner Wert",
+    "rule": "Jede TransactionLog-Update-Datei, die einer nicht-aggregierten",
+    "pass_text": "Alle nicht-aggregierten Update-Logs verwenden definitive",
+    "fail_text": "Ein nicht-aggregiertes Update-Log verwendet indefinite-length-Kodierung",
+    "note": "Diese Regel ist die SM_NOAGG-Entsprechung zu LOG_ASN1_PDATA_TAG_DEF",
+    "ref": "BSI TR-03151-1 §5.3; STO_FUN_02, STO_FUN_04, STO_FUN_06"
+  },
+  "STOR_PARA_ALL_STARTS": {
+    "id": "STOR_PARA_ALL_STARTS",
+    "name": "Alle parallel gestarteten Transaktionen im Export vorhanden",
+    "rule": "Wenn der TAR-Export Transaktionslog-Dateien für mehrere verschiedene",
+    "pass_text": "F ⊆ S ist erfüllt. Anzahl der vollständigen (Start + Finish)",
+    "fail_text": "Mindestens eine transactionNumber in F hat keinen entsprechenden",
+    "note": "Diese Regel ergänzt TXN_LIFE_START (die prüft, dass jede",
+    "ref": "BSI TR-03151-1 §4; BSI TR-03153-1 §9.2; STO_FUN_05, STO_FUN_06"
+  },
+  "STOR_PARA_PDATA_ISOLATED": {
+    "id": "STOR_PARA_PDATA_ISOLATED",
+    "name": "processData paralleler Transaktionen sind isoliert",
+    "rule": "Bei parallelen Transaktionen mit Aggregation muss das processData-Feld",
+    "pass_text": "",
+    "warn_text": "Strukturelle Inkonsistenz festgestellt (z.B. Anzahl der",
+    "fehler_(mit_metadaten)": "processData-Unterelement stimmt nicht mit",
+    "note": "Diese Regel ist die Parallel-Transaktions-Erweiterung von",
+    "ref": "BSI TR-03151-1 §4.3, §5.3; STO_FUN_05, STO_FUN_06"
+  },
+  "STOR_PARA_INTERLEAVE_VALID": {
+    "id": "STOR_PARA_INTERLEAVE_VALID",
+    "name": "Gültige Zähler-Verschachtelung paralleler Transaktionen",
+    "rule": "Die signatureCounter-Werte von Log-Nachrichten verschiedener",
+    "pass_text": "Alle drei Bedingungen erfüllt. Das Interleaving-Muster der",
+    "fail_text": "Bedingung 1 oder 3 verletzt (aus bestehenden Regeln). Bedingung 2",
+    "note": "Diese Regel formalisiert, dass parallele Transaktionen im TAR",
+    "ref": "BSI TR-03151-1 §4.1 (parallele Transaktionen); BSI TR-03153-1 §9.2;"
+  },
+  "DEL_TAR_NO_LOGS": {
+    "id": "DEL_TAR_NO_LOGS",
+    "name": "Keine Log-Nachrichten nach dem Löschen",
+    "rule": "Ein exportLogMessages-TAR, der nach einem erfolgreichen",
+    "vorbedingung": "deleteLogMessages wurde ohne ErrorUnexportedLogMessages",
+    "pass_text": "Das Archiv enthält keine Dateien mit der Endung .log.",
+    "fail_text": "Mindestens eine .log-Datei im Archiv vorhanden; Dateinamen",
+    "ref": "BSI TR-03153-1 §6.3.1.22 (II_DLM_01); BSI TR-03151-1 §5.3"
+  },
+  "DEL_TAR_STRUCT": {
+    "id": "DEL_TAR_STRUCT",
+    "name": "Minimale TAR-Struktur nach dem Löschen",
+    "rule": "Ein TAR-Export nach deleteLogMessages darf zwar keine Log-Dateien,",
+    "pass_text": "Archiv enthält info.csv und mindestens eine Zertifikatsdatei",
+    "warn_text": "info.csv oder Zertifikatsdateien fehlen im Post-Delete-TAR.",
+    "note": "Die weiterhin geltenden Regeln EXP_TAR_01, EXP_TAR_END,",
+    "ref": "BSI TR-03151-1 §5.2; BSI TR-03153-1 §6.3.1.22"
+  },
+  "DEL_TAR_CTR_RESET": {
+    "id": "DEL_TAR_CTR_RESET",
+    "name": "Signaturzähler-Kontinuität nach Neustart",
+    "rule": "Werden nach einem deleteLogMessages neue Log-Nachrichten erzeugt",
+    "pass_text": "Der kleinste signatureCounter im Post-Delete-Post-Activity-TAR",
+    "warn_text": "Signaturzähler scheint nach Löschung zurückgesetzt worden zu sein.",
+    "ref": "BSI TR-03151-1 §5.1; BSI TR-03153-1 §9.1"
+  },
+  "DLM_LOG_PRESENT": {
+    "id": "DLM_LOG_PRESENT",
+    "name": "deleteLogMessages-Log vorhanden",
+    "trigger": "TAR-Export nach einem deleteLogMessages-Aufruf.",
+    "rule": "Der TAR-Container muss mindestens eine SystemLog-Datei enthalten,",
+    "pass_text": "Mindestens eine passende Datei gefunden.",
+    "fail_text": "Keine Datei mit deleteLogMessages im Dateinamen vorhanden.",
+    "automatisierungsgrad": "partial – Dateinamen-Matching automatisch;",
+    "ref": "BSI TR-03153-1 §6.3.1; II_DLM_01 Schritt 4"
+  },
+  "DLM_LOG_EVTYPE": {
+    "id": "DLM_LOG_EVTYPE",
+    "name": "eventType = deleteLogMessages",
+    "trigger": "SystemLog-Datei mit deleteLogMessages im Dateinamen.",
+    "rule": "Das ASN.1-Feld eventType in der Log-Nachricht muss den",
+    "pass_text": "eventType = deleteLogMessages.",
+    "fail_text": "eventType hat anderen Wert oder fehlt.",
+    "automatisierungsgrad": "true",
+    "ref": "BSI TR-03153-1 §6.3.1; BSI TR-03151-1 SystemLogMessage;"
+  },
+  "DLM_LOG_EVORIGIN": {
+    "id": "DLM_LOG_EVORIGIN",
+    "name": "eventOrigin = integration-interface",
+    "trigger": "SystemLog mit eventType = deleteLogMessages.",
+    "rule": "Das Feld eventOrigin muss den Wert integration-interface",
+    "pass_text": "eventOrigin = integration-interface.",
+    "fail_text": "Anderer Wert oder fehlend.",
+    "automatisierungsgrad": "true",
+    "note": "Gilt analog für alle SystemLogs, die durch einen",
+    "ref": "BSI TR-03153-1 §6.3.1; II_DLM_01 Schritt 5"
+  },
+  "DLM_LOG_EVDATA_EMPTY": {
+    "id": "DLM_LOG_EVDATA_EMPTY",
+    "name": "eventData ist leere Sequence",
+    "trigger": "SystemLog mit eventType = deleteLogMessages.",
+    "rule": "Das Feld eventData muss eine leere ASN.1-SEQUENCE (0x30 0x00)",
+    "pass_text": "eventData ist leer (Länge 0) oder entspricht dem",
+    "fail_text": "eventData enthält Daten oder fehlt.",
+    "automatisierungsgrad": "true",
+    "ref": "BSI TR-03153-1 §6.3.1; BSI TR-03151-1 SystemLogMessage"
+  },
+  "DLM_LOG_MINIMAL": {
+    "id": "DLM_LOG_MINIMAL",
+    "name": "Minimaler TAR-Inhalt nach Löschvorgang",
+    "trigger": "TAR-Export nach erfolgreichem deleteLogMessages-Aufruf",
+    "rule": "Der TAR-Container darf **außer** der Log-Nachricht für",
+    "pass_text": "Nur Log-Nachrichten vorhanden, die nach dem",
+    "warn_text": "Log-Nachrichten mit älterem Zeitstempel gefunden, die",
+    "automatisierungsgrad": "partial – Zeitstempelvergleich automatisch;",
+    "ref": "BSI TR-03153-1 §5.1.5; II_DLM_01 Schritt 3"
+  },
+  "DLM_TAR_SUPERSET": {
+    "id": "DLM_TAR_SUPERSET",
+    "name": "Zweiter TAR enthält alle Logs des ersten TAR",
+    "trigger": "Zwei TAR-Container aus derselben TSE: TAR₁ (vor dem",
+    "rule": "Jede Log-Datei, die in TAR₁ vorhanden ist (identifiziert über",
+    "pass_text": "TAR₂ ⊇ TAR₁ (bzgl. Log-Dateien).",
+    "fail_text": "Mindestens eine Log-Datei aus TAR₁ fehlt in TAR₂ oder weist",
+    "automatisierungsgrad": "partial – Dateiname- und Inhaltsvergleich",
+    "ref": "BSI TR-03153-1 §5.1.5; II_DLM_02 Schritt 5"
+  },
+  "AGG_UPDATE_ABSENT": {
+    "id": "AGG_UPDATE_ABSENT",
+    "name": "Keine Log-Nachricht für nicht-signierte Zwischenupdates",
+    "rule": "Für einen updateTransaction-Aufruf, der ohne forceSignature=true",
+    "pass_text": "Die Anzahl der Aktualisierungs-Log-Nachrichten im TAR stimmt mit",
+    "fail_text": "Eine Aktualisierungs-Log-Nachricht liegt vor, die einem nicht",
+    "note": "Diese Regel ergänzt TXN_LIFE_*. Sie ist nur prüfbar, wenn",
+    "ref": "BSI TR-03151-1 §4.3 (Aggregation); EXP_LOG_11, EXP_LOG_12"
+  },
+  "AGG_PDATA_CONCAT": {
+    "id": "AGG_PDATA_CONCAT",
+    "name": "processData einer aggregierten Nachricht ist Konkatenation",
+    "rule": "Wenn mehrere updateTransaction-Aufrufe zu einer einzigen",
+    "pass_text": "Der processData-Wert der aggregierten Nachricht entspricht der",
+    "fail_text": "Der Wert weicht von der erwarteten Konkatenation ab.",
+    "ref": "BSI TR-03151-1 §4.3, §5.3; EXP_LOG_14, EXP_LOG_16"
+  },
+  "AGG_ADD_CONCAT": {
+    "id": "AGG_ADD_CONCAT",
+    "name": "additionalExternalData einer aggregierten Nachricht ist Konkatenation",
+    "rule": "Der TAR-Container muss eine updateTransaction-Log-Datei",
+    "pass_text": "updateTransaction-Log mit Signaturzähler aus dem",
+    "fail_text": "Kein Log nach forceSignature = TRUE vorhanden.",
+    "ref": "II_UPD_07 Schritte 8–9",
+    "trigger": "TAR-Export nach einem updateTransaction-Aufruf mit",
+    "automatisierungsgrad": "partial – Zuordnung des Logs zum"
+  },
+  "RFB_TAR_LOGS_PRESENT": {
+    "id": "RFB_TAR_LOGS_PRESENT",
+    "name": "Wiederhergestellte Logs im Export vorhanden",
+    "rule": "Alle Log-Dateien aus dem als Backup übergebenen TAR-Archiv müssen",
+    "prüfung": "Dateinamen der .log-Dateien im Backup-TAR werden als",
+    "pass_text": "Alle Dateinamen aus dem Backup sind im Export-TAR vorhanden.",
+    "fail_text": "Mindestens eine Log-Datei aus dem Backup fehlt im Export-TAR.",
+    "ref": "BSI TR-03153-1 §6.3.1.25 (II_RFB_01); BSI TR-03151-1 §5.3"
+  },
+  "RFB_TAR_NO_DUP": {
+    "id": "RFB_TAR_NO_DUP",
+    "name": "Keine Duplikate nach Restore",
+    "rule": "Im Post-Restore-TAR darf jeder Dateiname **höchstens einmal**",
+    "pass_text": "Alle Dateinamen im Post-Restore-TAR sind eindeutig.",
+    "fail_text": "Mindestens ein Dateiname erscheint mehrfach. Doppelte Dateinamen",
+    "ref": "BSI TR-03153-1 §6.3.1.25 (II_RFB_02)"
+  },
+  "RFB_TAR_LOG_VALID": {
+    "id": "RFB_TAR_LOG_VALID",
+    "name": "Wiederhergestellte Log-Nachrichten valide",
+    "rule": "Alle aus dem Backup wiederhergestellten Log-Nachrichten müssen",
+    "pass_text": "Alle wiederhergestellten Log-Nachrichten bestehen die",
+    "fail_text": "Mindestens eine wiederhergestellte Log-Nachricht verletzt eine",
+    "note": "Diese Regel stellt sicher, dass der Restore-Vorgang die",
+    "ref": "BSI TR-03153-1 §6.3.1.25; BSI TR-03151-1 §5.2"
+  },
+  "RFB_TAR_CROSS_SERIAL": {
+    "id": "RFB_TAR_CROSS_SERIAL",
+    "name": "Einheitliche Seriennummer nach Restore",
+    "rule": "Der TAR-Container darf **keine** der Backup-Log-Dateien enthalten,",
+    "pass_text": "Keine fremden Log-Dateien im TAR vorhanden; Dateianzahl",
+    "fail_text": "Mindestens eine fremde Log-Datei eingelesen.",
+    "ref": "II_RFB_06 Schritt 4–5",
+    "trigger": "TAR-Export nach einem restoreFromBackup-Aufruf, der mit",
+    "automatisierungsgrad": "partial – Abgleich mit Backup-Inhalt für"
+  },
+  "DSE_LOG_PRESENT": {
+    "id": "DSE_LOG_PRESENT",
+    "name": "disableSecureElement-Log vorhanden",
+    "trigger": "TAR-Export nach einem disableSecureElement-Aufruf.",
+    "rule": "Der TAR muss eine SystemLog-Datei mit disableSecureElement",
+    "pass_text": "Datei gefunden.",
+    "fail_text": "Keine entsprechende Datei.",
+    "automatisierungsgrad": "partial – Dateinamen-Matching automatisch;",
+    "ref": "BSI TR-03153-1 §6.3.1; II_DSE_01 Schritt 4;"
+  },
+  "DSE_LOG_EVTYPE": {
+    "id": "DSE_LOG_EVTYPE",
+    "name": "eventType = disableSecureElement",
+    "trigger": "SystemLog mit disableSecureElement im Dateinamen.",
+    "rule": "Das Feld eventType muss disableSecureElement enthalten.",
+    "pass_text": "Korrekt.",
+    "fail_text": "Abweichender Wert.",
+    "automatisierungsgrad": "true",
+    "ref": "II_DSE_01 Schritt 5"
+  },
+  "DSE_LOG_EVORIGIN": {
+    "id": "DSE_LOG_EVORIGIN",
+    "name": "eventOrigin = integration-interface",
+    "trigger": "SystemLog mit eventType = disableSecureElement.",
+    "rule": "eventOrigin muss integration-interface sein.",
+    "pass_text": "Korrekt.",
+    "fail_text": "Abweichender Wert.",
+    "automatisierungsgrad": "true",
+    "ref": "II_DSE_01 Schritt 5"
+  },
+  "DSE_LOG_EVDATA_EMPTY": {
+    "id": "DSE_LOG_EVDATA_EMPTY",
+    "name": "eventData ist leere Sequence",
+    "trigger": "SystemLog mit eventType = disableSecureElement.",
+    "rule": "Das Feld eventData muss eine leere ASN.1-SEQUENCE enthalten.",
+    "pass_text": "eventData leer.",
+    "fail_text": "eventData enthält Nutzdaten.",
+    "automatisierungsgrad": "true",
+    "ref": "BSI TR-03151-1 SystemLogMessage disableSecureElement;"
+  },
+  "DSE_FINAL_LOG": {
+    "id": "DSE_FINAL_LOG",
+    "name": "disableSecureElement ist der letzte signierte Log-Eintrag",
+    "trigger": "TAR-Export nach unlockTransactionLogging, wenn anschließend",
+    "rule": "Der TAR-Container muss TransactionLog-Dateien für",
+    "pass_text": "Entsprechende TransactionLog-Dateien vorhanden.",
+    "fail_text": "Keine TransactionLog-Dateien nach dem Entsperren vorhanden.",
+    "automatisierungsgrad": "true",
+    "ref": "II_UTL_01 Schritte 10–12",
+    "info_text": "Ist Profil UPDATE_EXTERNAL_NOT_LOGGED aktiv, wird **kein** Startlog",
+    "note": "Diese Prüfung ergänzt EXP_INF_01; hier wird zusätzlich geprüft,"
+  },
+  "EXF_TXN_INCLUDED": {
+    "id": "EXF_TXN_INCLUDED",
+    "name": "Logs der gefilterten Transaktion vorhanden",
+    "trigger": "TAR aus exportFilteredTransactionLogs mit Parameter",
+    "rule": "Der TAR muss **alle** Log-Nachrichten (start, update,",
+    "pass_text": "Alle passenden Log-Dateien vorhanden.",
+    "fail_text": "Mindestens eine erwartete Log-Datei fehlt.",
+    "automatisierungsgrad": "partial – Dateinamen-Matching automatisch;",
+    "ref": "BSI TR-03153-1 §5.1.4; II_EXF_01 Schritte 10, 11;"
+  },
+  "EXF_TXN_EXCLUDED": {
+    "id": "EXF_TXN_EXCLUDED",
+    "name": "Logs anderer Transaktionen nicht vorhanden",
+    "trigger": "TAR aus exportFilteredTransactionLogs mit Filter",
+    "rule": "Der TAR darf **keine** TransactionLog-Dateien für andere",
+    "pass_text": "Keine Logs anderer Transaktionsnummern im TAR.",
+    "fail_text": "Transaktionslogs mit abweichender Transaktionsnummer",
+    "automatisierungsgrad": "partial – Dateinamen-Analyse automatisch;",
+    "ref": "BSI TR-03153-1 §5.1.4; II_EXF_01 Schritte 8, 9,"
+  },
+  "EXF_CLIENT_MATCH": {
+    "id": "EXF_CLIENT_MATCH",
+    "name": "Bei kombiniertem Filter: Client-ID korrekt",
+    "trigger": "TAR aus exportFilteredTransactionLogs mit Parametern",
+    "rule": "Der TAR muss Logs für die Transaktion $tn nur dann",
+    "pass_text": "Logs im TAR gehören zu ($tn, $client)-Kombination.",
+    "fail_text": "Logs vorhanden, die zu $tn aber einem anderen Client",
+    "automatisierungsgrad": "partial",
+    "ref": "II_EXF_04 Schritte 12–17; II_EXF_07"
+  },
+  "EXF_INTERVAL_INCLUDED": {
+    "id": "EXF_INTERVAL_INCLUDED",
+    "name": "Logs im Intervall [first, last] vorhanden",
+    "trigger": "TAR aus exportFilteredTransactionLogs mit Parametern",
+    "rule": "Für jede Transaktionsnummer n mit $first ≤ n ≤ $last",
+    "pass_text": "Alle Transaktionen im Intervall vorhanden.",
+    "fail_text": "Mindestens eine Transaktion aus dem Intervall fehlt.",
+    "automatisierungsgrad": "partial – Intervallogik automatisch;",
+    "ref": "BSI TR-03153-1 §5.1.4; II_EXF_08 Schritte 10–13;"
+  },
+  "EXF_INTERVAL_EXCLUDED": {
+    "id": "EXF_INTERVAL_EXCLUDED",
+    "name": "Logs außerhalb des Intervalls nicht vorhanden",
+    "trigger": "TAR aus exportFilteredTransactionLogs mit Intervall",
+    "rule": "Transaktionslogs mit Nummern < $first oder > $last",
+    "pass_text": "Keine Logs außerhalb des Intervalls.",
+    "fail_text": "Logs außerhalb des Intervalls gefunden.",
+    "automatisierungsgrad": "partial",
+    "ref": "II_EXF_08 Schritte 14–17; II_EXF_14 Schritte 10–11,"
+  },
+  "EXF_TIME_INCLUDED": {
+    "id": "EXF_TIME_INCLUDED",
+    "name": "Logs im Zeitraum [start, end] vorhanden",
+    "trigger": "TAR aus exportFilteredTransactionLogs mit Zeitraum-",
+    "rule": "Alle TransactionLog- und (falls angefordert) System-/Audit-",
+    "pass_text": "Alle im Zeitraum liegenden Logs vorhanden.",
+    "fail_text": "Mindestens ein erwarteter Log fehlt.",
+    "automatisierungsgrad": "partial – Zeitstempelextraktion automatisch;",
+    "ref": "BSI TR-03153-1 §5.1.4; II_EXF_17 Schritte 10–17;"
+  },
+  "EXF_TIME_EXCLUDED": {
+    "id": "EXF_TIME_EXCLUDED",
+    "name": "Logs außerhalb des Zeitraums nicht vorhanden",
+    "trigger": "TAR aus exportFilteredTransactionLogs mit Zeitraum-Filter.",
+    "rule": "Log-Nachrichten mit signatureCreationTime außerhalb des",
+    "pass_text": "Keine Logs außerhalb des Zeitraums.",
+    "fail_text": "Logs außerhalb des Zeitraums gefunden.",
+    "automatisierungsgrad": "partial",
+    "ref": "II_EXF_17 Schritte 14–17; II_EXF_22 Schritte 12–13"
+  },
+  "EXF_TIME_START_ONLY": {
+    "id": "EXF_TIME_START_ONLY",
+    "name": "Nur Startdatum: Export bis zur aktuellsten Nachricht",
+    "trigger": "TAR aus exportFilteredTransactionLogs mit",
+    "rule": "Alle Log-Nachrichten ab $start bis zur aktuellsten im",
+    "pass_text": "TAR enthält alle Logs von $start bis zum letzten",
+    "fail_text": "Neuere Logs fehlen oder ältere Logs sind eingeschlossen.",
+    "automatisierungsgrad": "partial",
+    "ref": "II_EXF_20, II_EXF_21"
+  },
+  "EXF_TIME_END_ONLY": {
+    "id": "EXF_TIME_END_ONLY",
+    "name": "Nur Enddatum: Export von der ältesten Nachricht",
+    "trigger": "TAR aus exportFilteredTransactionLogs mit",
+    "rule": "Alle Log-Nachrichten von der ältesten im Speicher vorhandenen",
+    "pass_text": "TAR enthält alle Logs bis und einschließlich $end.",
+    "fail_text": "Jüngere Logs (> $end) sind enthalten oder ältere Logs fehlen.",
+    "automatisierungsgrad": "partial",
+    "ref": "II_EXF_22, II_EXF_23"
+  },
+  "EXF_MAXREC_COUNT": {
+    "id": "EXF_MAXREC_COUNT",
+    "name": "Anzahl der Records ≤ maximumNumberRecords",
+    "trigger": "TAR aus exportFilteredTransactionLogs mit Parameter",
+    "rule": "Die Gesamtanzahl der TransactionLog-Dateien im TAR darf",
+    "pass_text": "Anzahl Transaktionslogs ≤ $max.",
+    "fail_text": "Anzahl überschreitet $max.",
+    "automatisierungsgrad": "partial – Zählung automatisch; $max-Wert",
+    "ref": "BSI TR-03153-1 §5.1.4; II_EXF_14 Schritt 9;"
+  },
+  "EXF_MAXREC_BOUNDARY": {
+    "id": "EXF_MAXREC_BOUNDARY",
+    "name": "Grenzfall: genau maximumRecords Records",
+    "trigger": "TAR aus gefiltertem Export, bei dem die Ergebnismenge",
+    "rule": "Wenn das Intervall oder der Zeitraum exakt $max",
+    "pass_text": "Alle $max Transaktionen vorhanden.",
+    "fail_text": "Weniger als $max Transaktionen im TAR (System hat",
+    "automatisierungsgrad": "partial",
+    "ref": "II_EXF_15, II_EXF_25"
+  },
+  "EXF_SYSAUDIT_IN_RANGE": {
+    "id": "EXF_SYSAUDIT_IN_RANGE",
+    "name": "System-/Audit-Logs im Filterbereich enthalten",
+    "trigger": "TAR aus exportFilteredTransactionLogs mit",
+    "rule": "Alle SystemLog- und AuditLog-Nachrichten, deren",
+    "pass_text": "Alle im Bereich liegenden System-/Audit-Logs vorhanden.",
+    "fail_text": "System- oder Audit-Logs fehlen, obwohl sie im relevanten",
+    "automatisierungsgrad": "partial – Zeitstempelvergleich automatisch;",
+    "ref": "BSI TR-03153-1 §5.1.4; II_EXF_02 Schritte 11, 12, 13;"
+  },
+  "EXF_SYSAUDIT_OUT_RANGE": {
+    "id": "EXF_SYSAUDIT_OUT_RANGE",
+    "name": "System-/Audit-Logs außerhalb des Filterbereichs ausgeschlossen",
+    "trigger": "TAR aus exportFilteredTransactionLogs (mit oder ohne",
+    "rule": "System- und Audit-Logs, deren signatureCreationTime",
+    "pass_text": "Keine System-/Audit-Logs außerhalb des Bereichs.",
+    "fail_text": "Logs gefunden, die zeitlich vor der ältesten oder nach der",
+    "automatisierungsgrad": "partial",
+    "ref": "II_EXF_02 Schritte 6, 7, 9, 14, 16; II_EXF_09"
+  },
+  "EXF_SYSAUDIT_NOT_REQUESTED": {
+    "id": "EXF_SYSAUDIT_NOT_REQUESTED",
+    "name": "Ohne Flags keine System-/Audit-Logs",
+    "trigger": "TAR aus exportFilteredTransactionLogs ohne",
+    "rule": "Der TAR darf keinerlei SystemLog- oder AuditLog-Dateien",
+    "pass_text": "Keine System-/Audit-Logs im TAR.",
+    "fail_text": "System- oder Audit-Logs trotz nicht gesetzter Flags vorhanden.",
+    "automatisierungsgrad": "true",
+    "ref": "II_EXF_01 Schritte 8–13; II_EXF_04 Schritte 14–17"
+  },
+  "EXF_SUBSET_INCLUDES_PREV": {
+    "id": "EXF_SUBSET_INCLUDES_PREV",
+    "name": "Gefilterter TAR enthält alle Logs des Voll-TAR",
+    "trigger": "Zwei TAR-Container: TAR₁ (Voll-Export vor dem Filter-",
+    "rule": "Jede Log-Datei aus TAR₁ muss auch in TAR₂ enthalten sein",
+    "pass_text": "Alle Dateien aus TAR₁ sind in TAR₂.",
+    "fail_text": "Mindestens eine Datei aus TAR₁ fehlt in TAR₂.",
+    "automatisierungsgrad": "partial – Dateivergleich automatisch;",
+    "ref": "II_EXF_22 Schritt 8"
+  },
+  "EXF_SUBSET_DISJOINT": {
+    "id": "EXF_SUBSET_DISJOINT",
+    "name": "Gefilterter TAR und Voll-TAR überschneiden sich nicht",
+    "trigger": "TAR₁ (Voll-Export bis Zeitpunkt T), TAR₂ (gefilterter",
+    "rule": "Kein Log-Eintrag, der in TAR₁ vorhanden ist, darf in TAR₂",
+    "pass_text": "Keine Überschneidung zwischen TAR₁ und TAR₂.",
+    "fail_text": "Gemeinsame Log-Einträge in beiden TARs gefunden.",
+    "automatisierungsgrad": "partial",
+    "ref": "II_EXF_23 Schritt 12"
+  },
+  "EXC_FNAME_SERIAL": {
+    "id": "EXC_FNAME_SERIAL",
+    "name": "SERIAL-Komponente im Dateinamen entspricht Zertifikat",
+    "trigger": "Zertifikatsdatei in einem getCertificate-TAR.",
+    "rule": "Die SERIAL-Komponente des Dateinamens (gem. Namensschema",
+    "pass_text": "SERIAL im Dateinamen stimmt mit serialNumber aus dem",
+    "fail_text": "Abweichung zwischen Dateiname und Zertifikatswert.",
+    "automatisierungsgrad": "true – vollautomatisch durch Zertifikats-",
+    "ref": "BSI TR-03151-1 §5.3 (Dateinamenschema Zertifikate);"
+  },
+  "EXC_FNAME_TYPE": {
+    "id": "EXC_FNAME_TYPE",
+    "name": "TYPE-Komponente im Dateinamen entspricht Zertifikatstyp",
+    "trigger": "Zertifikatsdatei in einem getCertificate-TAR.",
+    "rule": "Die TYPE-Komponente des Dateinamens muss dem Zertifikatstyp",
+    "pass_text": "TYPE im Dateinamen ist konsistent mit dem Zertifikatstyp.",
+    "fail_text": "TYPE im Dateinamen entspricht nicht dem tatsächlichen",
+    "automatisierungsgrad": "true",
+    "ref": "BSI TR-03151-1 §5.3; II_EXC_01 Schritt 3"
+  },
+  "EXC_FNAME_EXT": {
+    "id": "EXC_FNAME_EXT",
+    "name": "Dateiendung der Zertifikatsdateien normiert",
+    "trigger": "Jede Datei im getCertificate-TAR, die kein info.csv ist.",
+    "rule": "Die Dateiendung muss einer der folgenden zulässigen Endungen",
+    "pass_text": "Alle Zertifikatsdateien haben eine der zulässigen Endungen.",
+    "fail_text": "Mindestens eine Datei hat eine andere Endung.",
+    "automatisierungsgrad": "true",
+    "ref": "BSI TR-03151-1 §5.3; II_EXC_01 Schritt 3"
+  },
+  "EXC_CERT_X509": {
+    "id": "EXC_CERT_X509",
+    "name": "Zertifikate sind als X.509 kodiert",
+    "trigger": "Zertifikatsdateien im getCertificate-TAR.",
+    "rule": "Alle Nicht-CSV-Dateien im TAR müssen gültige X.509-Zertifikate",
+    "pass_text": "Alle Zertifikatsdateien parsen als gültige X.509-Zertifikate.",
+    "fail_text": "Mindestens eine Datei ist kein gültiges X.509-Zertifikat.",
+    "automatisierungsgrad": "true",
+    "ref": "RFC 5280; BSI TR-03151-1 §5.3; II_EXC_01 Schritt 4"
+  },
+  "EXC_NO_EXTRA_FILES": {
+    "id": "EXC_NO_EXTRA_FILES",
+    "name": "TAR enthält ausschließlich Zertifikate und info.csv",
+    "trigger": "getCertificate-TAR.",
+    "rule": "Der TAR-Container darf **ausschließlich** folgende Dateien",
+    "pass_text": "Alle Dateien sind entweder info.csv oder Zertifikate.",
+    "fail_text": "Weitere Dateien (z. B. Log-Nachrichten) im TAR vorhanden.",
+    "automatisierungsgrad": "true",
+    "ref": "BSI TR-03151-1 §5.3; BSI TR-03153-1 §6.4.4; II_EXC_01"
+  },
+  "CROSS_LOG_SERIAL": {
+    "id": "CROSS_LOG_SERIAL",
+    "name": "Einheitliche TSE-Seriennummer im gesamten Archiv",
+    "rule": "Das Feld serialNumber (SHA-256-Hash des öffentlichen Schlüssels der",
+    "pass_text": "Alle serialNumber-Felder sind identisch. Der gemeinsame Wert",
+    "fail_text": "Unterschiedliche serialNumber-Werte in verschiedenen Log-Dateien",
+    "note": "Liegt auch ein TSE-Zertifikat im Archiv vor, wird der",
+    "ref": "BSI TR-03153-1 §9.3.2; DOC_INS_01"
+  },
+  "CROSS_LOG_CTR_UNIQUE": {
+    "id": "CROSS_LOG_CTR_UNIQUE",
+    "name": "Keine doppelten signatureCounter-Werte",
+    "rule": "Jeder signatureCounter-Wert darf im gesamten Archiv **höchstens",
+    "pass_text": "Alle signatureCounter-Werte sind eindeutig. Gesamtanzahl der",
+    "fail_text": "Mindestens ein signatureCounter-Wert tritt mehrfach auf.",
+    "ref": "BSI TR-03153-1 §9.1; DOC_INS_01"
+  },
+  "CROSS_LOG_CTR_GAPS": {
+    "id": "CROSS_LOG_CTR_GAPS",
+    "name": "Keine Lücken in der signatureCounter-Sequenz",
+    "rule": "Die signatureCounter-Werte aller Log-Nachrichten im Archiv müssen",
+    "vorbedingung": "Mindestens zwei Log-Nachrichten im Archiv vorhanden.",
+    "pass_text": "Keine Lücken. Gesamtbereich [min, max] und Anzahl der",
+    "warn_text": "Lücken im Zählerbereich gefunden. Fehlende Zählerwerte oder",
+    "note": "Diese Prüfung ist eine Warnung (kein Fehler), da ein partieller",
+    "ref": "BSI TR-03153-1 §9.1; BSI TR-03151-1 §5.1; DOC_INS_01"
+  },
+  "CROSS_LOG_TIME_MONO": {
+    "id": "CROSS_LOG_TIME_MONO",
+    "name": "Monoton steigende signatureCreationTime",
+    "rule": "Die signatureCreationTime-Werte aller Log-Nachrichten müssen",
+    "pass_text": "Alle Zeitstempel sind in der Reihenfolge des signatureCounter",
+    "warn_text": "Zeitstempel-Umkehrung gefunden (Nachricht mit höherem",
+    "note": "Gleiche Zeitstempel bei aufeinanderfolgenden Nachrichten",
+    "ref": "BSI TR-03153-1 §5.2 (signatureCreationTime); DOC_DLY_01"
+  },
+  "CROSS_LOG_TIMEFMT": {
+    "id": "CROSS_LOG_TIMEFMT",
+    "name": "Einheitliches Zeitformat im gesamten Archiv",
+    "rule": "Alle Log-Dateinamen im Archiv müssen denselben Zeitformat-Präfix",
+    "pass_text": "Alle Log-Dateien verwenden denselben Präfix. Verwendetes Format",
+    "fail_text": "Unterschiedliche Zeitformat-Präfixe in verschiedenen Log-Dateien",
+    "ref": "BSI TR-03151-1 (Dateinamenkonvention); DOC_TME_01"
+  },
+  "CROSS_LOG_CLIENTIDS": {
+    "id": "CROSS_LOG_CLIENTIDS",
+    "name": "Inventar aller clientId-Werte",
+    "rule": "Alle in TransactionLog-Dateien vorkommenden clientId-Werte werden",
+    "pass_text": "Inventar der clientId-Werte (Anzahl und Liste) wird ausgegeben.",
+    "warn_text": "clientId-Wert im Dateinamen stimmt in mindestens einer Datei",
+    "note": "Diese Regel erzeugt keinen Pass/Fail-Status für das Inventar selbst,",
+    "ref": "BSI TR-03151-1 TransactionLogMessage §4; DOC_PAR_01"
+  },
+  "CSC_CROSS_LOG": {
+    "id": "CSC_CROSS_LOG",
+    "name": "Signaturzähler stimmt mit TAR-Log überein",
+    "rule": "Der von getCurrentLoggingSignatureCounters zurückgegebene Wert",
+    "pass_text": "Zurückgegebener Zählerstand = maximaler signatureCounter",
+    "fail_text": "Abweichung festgestellt. Zurückgegebener Wert und maximaler",
+    "note": "Diese Regel setzt voraus, dass zwischen getCurrentLoggingSignatureCounters und dem nachfolgenden exportLogMessages keine weiteren",
+    "ref": "BSI TR-03153-1 §6.3.1.24 (II_CSC_01); BSI TR-03151-1 §9.1"
+  },
+  "CSC_CROSS_FORMAT": {
+    "id": "CSC_CROSS_FORMAT",
+    "name": "Format des Signaturzähler-Rückgabewerts",
+    "rule": "Der Rückgabewert muss eine nicht-negative ganzzahlige Größe im",
+    "pass_text": "Rückgabewert ist eine nicht-negative Ganzzahl im korrekten",
+    "fail_text": "Rückgabewert ist negativ, hat falschen Datentyp oder ist leer.",
+    "ref": "BSI TR-03151-2 §3; BSI TR-03153-1 §6.3.1.24 (II_CSC_01)"
+  },
+  "CRL_LIVE_FETCH": {
+    "id": "CRL_LIVE_FETCH",
+    "name": "CRL-Endpunkt erreichbar",
+    "rule": "Für jeden im Zertifikat enthaltenen CRL Distribution Point (OID",
+    "vorbedingung": "CRL Distribution Point(s) im Zertifikat vorhanden",
+    "pass_text": "Alle CRL-Endpunkte erreichbar, CRL-Download erfolgreich.",
+    "warn_text": "Mindestens ein CRL-Endpunkt nicht erreichbar oder Download-Fehler.",
+    "note": "Netzwerkfehler können auch temporäre Ursachen haben.",
+    "nur_bei": "--online-Modus aktiv.",
+    "ref": "RFC 5280 §6.3; BSI TR-03116-5 §10.2.3; DOC_DSE_04"
+  },
+  "CRL_LIVE_VALIDITY": {
+    "id": "CRL_LIVE_VALIDITY",
+    "name": "CRL selbst noch gültig",
+    "rule": "Das Feld nextUpdate der heruntergeladenen CRL muss in der Zukunft",
+    "pass_text": "nextUpdate liegt in der Zukunft. Verbleibende Gültigkeitsdauer",
+    "warn_text": "CRL abgelaufen (nextUpdate in der Vergangenheit). Differenz in",
+    "nur_bei": "--online-Modus aktiv, CRL_LIVE_FETCH erfolgreich.",
+    "ref": "RFC 5280 §5.1.2; DOC_DSE_01"
+  },
+  "CRL_LIVE_REVOKED": {
+    "id": "CRL_LIVE_REVOKED",
+    "name": "Zertifikat nicht in CRL eingetragen",
+    "rule": "Die Seriennummer (serialNumber) des TSE-Blatt-Zertifikats",
+    "pass_text": "Zertifikat nicht in der CRL. TSE-Seriennummer und CRL-Aussteller",
+    "fail_text": "Zertifikat ist in der CRL als gesperrt eingetragen.",
+    "nur_bei": "--online-Modus aktiv, CRL_LIVE_FETCH und CRL_LIVE_VALIDITY",
+    "ref": "RFC 5280 §6.3; BSI TR-03153-1 §9.3.2; DOC_DSE_01, DOC_DSE_04"
+  },
+  "CRL_LIVE_CA_REVOKED": {
+    "id": "CRL_LIVE_CA_REVOKED",
+    "name": "CA-Zertifikat nicht widerrufen",
+    "rule": "Analog zu CRL_LIVE_REVOKED wird auch für jedes CA-Zertifikat in",
+    "pass_text": "Kein CA-Zertifikat in einer CRL eingetragen.",
+    "fail_text": "Mindestens ein CA-Zertifikat der Kette ist gesperrt.",
+    "nur_bei": "--online-Modus aktiv.",
+    "ref": "RFC 5280 §6.1; DOC_DSE_01"
+  },
+  "INLINE_PARSE": {
+    "id": "INLINE_PARSE",
+    "name": "Inline-Log-Nachricht parsebar",
+    "rule": "Der zurückgegebene Byte-Blob muss als ASN.1/DER-encodierte",
+    "pass_text": "Parsen erfolgreich; Typ der Log-Nachricht wird ausgegeben",
+    "fail_text": "Parsen fehlgeschlagen; Byte-Offset des Fehlers und ggf.",
+    "ref": "BSI TR-03151-1 §5.2; LOG_PARSE"
+  },
+  "INLINE_FIELDS": {
+    "id": "INLINE_FIELDS",
+    "name": "Pflichtfelder der Inline-Log-Nachricht vorhanden",
+    "rule": "Die Inline-Log-Nachricht muss alle Pflichtfelder einer",
+    "pass_text": "Alle Pflichtfelder vorhanden und korrekt formatiert.",
+    "fail_text": "Mindestens ein Pflichtfeld fehlt oder hat unzulässiges Format.",
+    "ref": "BSI TR-03151-1 §5.2; BSI TR-03153-1 §5.2.1; LOG_VERSION,"
+  },
+  "INLINE_MATCH_EXPORT": {
+    "id": "INLINE_MATCH_EXPORT",
+    "name": "Inline-Log stimmt mit TAR-Export überein",
+    "rule": "Wird nach getLastLogMessage bzw. getLastTransactionLogMessage",
+    "prüfung": "Die signatureCounter-Werte und signatureValue-Bytes beider",
+    "pass_text": "Inline-Nachricht und entsprechende TAR-Log-Datei sind",
+    "fail_text": "Inhalt weicht ab. Unterschiedliche Felder werden ausgegeben.",
+    "note": "Diese Regel erfordert den Vergleich zwischen Inline-Response",
+    "ref": "BSI TR-03153-1 §6.3.1.26; BSI TR-03153-1 §6.3.1.27"
+  },
+  "INLINE_LAST": {
+    "id": "INLINE_LAST",
+    "name": "Inline-Log ist tatsächlich die letzte Log-Nachricht",
+    "rule": "Das ASN.1-Feld clientId innerhalb der Log-Nachricht muss dem Wert",
+    "pass_text": "clientId im Log-Feld = übergebener Wert.",
+    "fail_text": "Abweichender Wert.",
+    "ref": "BSI TR-03151-1 TransactionLogMessage; II_REC_01 Schritt 9, 11, 13",
+    "trigger": "TransactionLog-Dateien, erstellt mit einer registrierten clientId.",
+    "automatisierungsgrad": "partial – Soll-Wert stammt aus Laufzeitkontex ($client1)."
+  },
+  "GCV_INFO_MATCH": {
+    "id": "GCV_INFO_MATCH",
+    "name": "deviceInformationSet entspricht info.csv im TAR",
+    "trigger": "Eingabeparameter gcv_deviceInformationSet_base64 ist vorhanden",
+    "automatisierungsgrad": "partial",
+    "rule": "Der aus gcv_deviceInformationSet_base64 dekodierte ASN.1-Blob",
+    "pass_text": "Alle Felder stimmen überein.",
+    "fail_text": "Mindestens ein Feld weicht ab oder fehlt auf einer Seite.",
+    "warn_text": "info.csv nicht vorhanden (EXP_INF_01 schlägt bereits an;",
+    "ref": "BSI TR-03153-1 §5.2.4.1; Testfall II_GCV_01"
+  },
+  "GLL_FNAME_MATCH": {
+    "id": "GLL_FNAME_MATCH",
+    "name": "logMessageFileName entspricht TAR-Dateinamen",
+    "trigger": "Mindestens ein Eintrag in gll_entries (Eingabeparameter).",
+    "automatisierungsgrad": "partial",
+    "rule": "Für jeden Eintrag in gll_entries muss der angegebene Wert",
+    "pass_text": "Dateiname im TAR gefunden.",
+    "fail_text": "Kein TAR-Eintrag mit diesem Dateinamen vorhanden.",
+    "ref": "BSI TR-03153-1 §6.4.3; Testfälle II_GLL_01, II_GLL_02"
+  },
+  "GLL_CONTENT_MATCH": {
+    "id": "GLL_CONTENT_MATCH",
+    "name": "logMessageContent entspricht TAR-Dateiinhalt",
+    "trigger": "Mindestens ein Eintrag in gll_entries mit Feld",
+    "automatisierungsgrad": "partial",
+    "rule": "Der aus logMessageContent_base64 dekodierte Byte-Blob muss",
+    "pass_text": "Byte-Inhalt stimmt exakt überein.",
+    "fail_text": "GLL_FNAME_MATCH fehlgeschlagen (Datei nicht gefunden) oder",
+    "ref": "BSI TR-03153-1 §6.4.3; Testfälle II_GLL_01, II_GLL_02"
+  },
+  "GLT_FNAME_MATCH": {
+    "id": "GLT_FNAME_MATCH",
+    "name": "logMessageFileName entspricht TAR-Dateinamen",
+    "trigger": "Mindestens ein Eintrag in glt_entries.",
+    "automatisierungsgrad": "partial",
+    "rule": "Für jeden Eintrag in glt_entries muss der Wert",
+    "pass_text": "Dateiname im TAR gefunden (und Transaktionsnummer-Prüfung",
+    "fail_text": "Dateiname nicht im TAR, oder Transaktionsnummer stimmt nicht überein.",
+    "ref": "BSI TR-03153-1 §6.4.3; Testfälle II_GLT_01, II_GLT_02, II_GLT_03"
+  },
+  "GLT_CONTENT_MATCH": {
+    "id": "GLT_CONTENT_MATCH",
+    "name": "logMessageContent entspricht TAR-Dateiinhalt",
+    "trigger": "TAR-Export, nachdem initialize mehr als einmal aufgerufen wurde",
+    "automatisierungsgrad": "true",
+    "rule": "Der TAR-Container darf genau **eine** SystemLog-Datei mit",
+    "pass_text": "Genau ein Eintrag mit eventType = initialize im TAR.",
+    "fail_text": "Mehr als ein Eintrag vorhanden.",
+    "ref": "BSI TR-03153-1 §6.2.1; II_INI_02 Schritt 5",
+    "note": "Gilt für den Fall, dass kein disableSecureElement dazwischen lag."
+  },
+  "DRC_LOG_PRESENT": {
+    "id": "DRC_LOG_PRESENT",
+    "name": "deregisterClient-Log vorhanden",
+    "trigger": "TAR-Export nach einem deregisterClient-Aufruf.",
+    "rule": "Der TAR-Container muss eine SystemLog-Datei enthalten, deren",
+    "pass_text": "Passende Datei gefunden.",
+    "fail_text": "Keine deregisterClient-Log-Datei im TAR.",
+    "automatisierungsgrad": "partial – Dateinamen-Matching automatisch;",
+    "ref": "BSI TR-03153-1 §6.3.1; II_DRC_01 Schritt 9, 11"
+  },
+  "DRC_LOG_EVTYPE": {
+    "id": "DRC_LOG_EVTYPE",
+    "name": "eventType = deregisterClient",
+    "trigger": "SystemLog mit deregisterClient im Dateinamen.",
+    "rule": "Das Feld eventType muss den Wert deregisterClient enthalten.",
+    "pass_text": "Korrekt.",
+    "fail_text": "Abweichender Wert.",
+    "automatisierungsgrad": "true",
+    "ref": "II_DRC_01 Schritt 10, 12"
+  },
+  "DRC_LOG_EVORIGIN": {
+    "id": "DRC_LOG_EVORIGIN",
+    "name": "eventOrigin = integration-interface",
+    "trigger": "SystemLog mit eventType = deregisterClient.",
+    "rule": "eventOrigin muss integration-interface sein.",
+    "pass_text": "Korrekt.",
+    "fail_text": "Abweichender Wert.",
+    "automatisierungsgrad": "true",
+    "ref": "II_DRC_01 Schritt 10, 12"
+  },
+  "DRC_LOG_CLIENTID": {
+    "id": "DRC_LOG_CLIENTID",
+    "name": "clientId in eventData entspricht deregistriertem Client",
+    "trigger": "SystemLog mit eventType = deregisterClient.",
+    "rule": "Das Feld clientId in eventData muss dem Wert der",
+    "pass_text": "clientId stimmt mit erwartetem Wert überein.",
+    "fail_text": "clientId fehlt oder hat anderen Wert.",
+    "automatisierungsgrad": "partial – Feldextraktion automatisch;",
+    "ref": "BSI TR-03153-1 §6.3.1; II_DRC_01 Schritt 10, 12"
+  },
+  "DRC_TXN_ABSENT": {
+    "id": "DRC_TXN_ABSENT",
+    "name": "Kein Transaktions-Log für deregistrierten Client",
+    "trigger": "TAR nach deregisterClient-Aufruf, wenn der Client",
+    "rule": "Der TAR darf keine TransactionLog-Dateien enthalten, bei",
+    "pass_text": "Keine solchen Logs vorhanden.",
+    "fail_text": "Transaktionslogs für den deregistrierten Client mit",
+    "automatisierungsgrad": "partial – Dateinamen- und Zeitstempelanalyse",
+    "ref": "BSI TR-03153-1 §5.1.3; II_DRC_01 Schritte 13, 15, 16"
+  },
+  "DRC_TXN_PRESENT": {
+    "id": "DRC_TXN_PRESENT",
+    "name": "Transaktions-Log für re-registrierten Client vorhanden",
+    "trigger": "TAR nach einer Sequenz: deregisterClient($client1) →",
+    "rule": "Der TAR muss ein startTransaction-Log für den neu",
+    "pass_text": "Passende Datei gefunden.",
+    "fail_text": "Kein startTransaction-Log für $client2.",
+    "automatisierungsgrad": "partial – Dateinamen-Matching automatisch;",
+    "ref": "II_DRC_01 Schritt 14"
+  },
+  "BSI": {
+    "id": "BSI",
+    "name": "TSE-OID"
+  }
+}

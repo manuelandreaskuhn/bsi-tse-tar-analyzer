@@ -61,7 +61,7 @@
 <template id="tpl-welcome">
   <div>
     <div class="drop-zone" id="drop-zone">
-      <input type="file" id="file-input" accept=".tar,.tar.001,.tar.002">
+      <input type="file" id="file-input" accept=".tar,.tar.001,.tar.002" style="display:none">
       <div class="drop-icon">📦</div>
       <div class="drop-title">TAR-Archiv auswählen</div>
       <div class="drop-sub">BSI TR-03151/TR-03153 konformes TAR-Archiv öffnen</div>
@@ -144,6 +144,16 @@
     </div>
 
     <!-- Category Overview Grid -->
+    <!-- TAR File List (collapsible) -->
+    <details class="tar-file-details" id="ov-tar-files">
+      <summary class="tar-file-summary">
+        <span class="tar-file-summary-icon">📁</span>
+        <span id="ov-tar-file-title">Dateien im Archiv</span>
+        <span class="tar-file-badge" id="ov-tar-file-count"></span>
+      </summary>
+      <div id="ov-tar-file-list" class="tar-file-list"></div>
+    </details>
+
     <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px">Kategorien-Übersicht</div>
     <div class="overview-grid" id="ov-cat-grid"></div>
   </div>
@@ -193,6 +203,7 @@
       <div class="check-rule-text">
         <div class="check-rule-label">📋 Regel</div>
         <div class="check-rule-body"></div>
+        <div class="check-rule-extra"></div>
       </div>
       <div class="check-detail-box"></div>
       <div class="check-ref"></div>
@@ -242,6 +253,7 @@
 <script src="js/utils.js"></script>
 <script src="js/tar-parser.js"></script>
 <script src="js/asn1-parser.js"></script>
+<script src="js/file-checker.js"></script>
 <script src="js/rules/r01-tar-structure.js"></script>
 <script src="js/rules/r02-arch-filename.js"></script>
 <script src="js/rules/r03-info-csv.js"></script>

@@ -9,6 +9,8 @@ const TarParser = (() => {
    * Returns { files: Map<name, {data, size, typeflag, header}>, headers, errors }
    */
   function parse(buf) {
+    // Accept ArrayBuffer or Uint8Array
+    if (buf instanceof ArrayBuffer) buf = new Uint8Array(buf);
     const files = new Map();
     const headers = [];
     const errors = [];
