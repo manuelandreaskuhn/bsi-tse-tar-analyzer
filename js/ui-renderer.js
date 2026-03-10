@@ -91,31 +91,53 @@ window.UIRenderer = (function () {
           const row = document.createElement('div');
           row.className = 'tar-file-row';
 
-          // Verdict badge from per-file results
+          // Verdict badge from per-file results (keyed by basename)
+          const basename = name.split('/').pop();
           let verdictBadge = '';
-          if (isLog && perFileResults && perFileResults[name]) {
-            const rs = perFileResults[name];
-            const f = rs.filter(r => r.status === 'FAIL').length;
-            const w = rs.filter(r => r.status === 'WARN').length;
-            const p = rs.filter(r => r.status === 'PASS').length;
-            if (f > 0) verdictBadge = `<span class="sb-mini sb-mini-fail">✗ ${f}</span>`;
-            else if (w > 0) verdictBadge = `<span class="sb-mini sb-mini-warn">⚠ ${w}</span>`;
-            else if (p > 0) verdictBadge = `<span class="sb-mini sb-mini-pass">✓</span>`;
-            row.dataset.logFile = name;
-            row.style.cursor = 'pointer';
-            row.title = 'Klicken für Datei-Details';
+          const _mkBadge = rs => {
+            const s = r => (r.status || '').toUpperCase();
+            const nf = rs.filter(r => s(r) === 'FAIL').length;
+            const nw = rs.filter(r => s(r) === 'WARN').length;
+            const np = rs.filter(r => s(r) === 'PASS').length;
+            if (nf > 0) return `<span class="sb-mini sb-mini-fail">✗ ${nf}</span>`;
+            if (nw > 0) return `<span class="sb-mini sb-mini-warn">⚠ ${nw}</span>`;
+            if (np > 0) return `<span class="sb-mini sb-mini-pass">✓</span>`;
+            return '';
+          };
+          let logTypeBadge = '';
+          if (isLog && perFileResults) {
+            const rs = perFileResults[basename] || perFileResults[name];
+            if (rs) {
+              verdictBadge = _mkBadge(rs);
+              row.dataset.logFile = name;
+              row.style.cursor = 'pointer';
+              row.title = 'Klicken für Datei-Details';
+            }
+            // Log type badge from parsedLogs
+            if (runResult && runResult.parsedLogs) {
+              const logEntry = runResult.parsedLogs.find(l => l._filename === basename);
+              if (logEntry) {
+                const lt = logEntry.logType || logEntry._filenameLogType || '';
+                const ltMap = {
+                  sys:   { label: 'SystemLog',      col: '#1e40af', bg: '#dbeafe' },
+                  txn:   { label: 'TransactionLog', col: '#6b21a8', bg: '#f3e8ff' },
+                  audit: { label: 'AuditLog',       col: '#92400e', bg: '#fef3c7' },
+                };
+                const ltInfo = ltMap[lt];
+                if (ltInfo) {
+                  logTypeBadge = `<span style="padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;color:${ltInfo.col};background:${ltInfo.bg};border:1px solid ${ltInfo.col}40;white-space:nowrap">${ltInfo.label}</span>`;
+                }
+              }
+            }
           }
-          if (isCert && perCertResults && perCertResults[name]) {
-            const rs = perCertResults[name];
-            const f = rs.filter(r => r.status === 'FAIL').length;
-            const w = rs.filter(r => r.status === 'WARN').length;
-            const p = rs.filter(r => r.status === 'PASS').length;
-            if (f > 0) verdictBadge = `<span class="sb-mini sb-mini-fail">✗ ${f}</span>`;
-            else if (w > 0) verdictBadge = `<span class="sb-mini sb-mini-warn">⚠ ${w}</span>`;
-            else if (p > 0) verdictBadge = `<span class="sb-mini sb-mini-pass">✓</span>`;
-            row.dataset.certFile = name;
-            row.style.cursor = 'pointer';
-            row.title = 'Klicken für Zertifikat-Details';
+          if (isCert && perCertResults) {
+            const rs = perCertResults[basename] || perCertResults[name];
+            if (rs) {
+              verdictBadge = _mkBadge(rs);
+              row.dataset.certFile = name;
+              row.style.cursor = 'pointer';
+              row.title = 'Klicken für Zertifikat-Details';
+            }
           }
 
           const typeClass = `ftype-${['log','pem','cer','crt','cert','csv'].includes(ext) ? ext : 'other'}`;
@@ -138,11 +160,13 @@ window.UIRenderer = (function () {
               certTypeBadge = `<span style="padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;color:${col};background:${bg};border:1px solid ${col}40;margin-left:4px">${ctLabels[ct]||ct}</span>`;
             }
           }
-          row.innerHTML = `<span class="tar-fname">${_esc(name)}</span>
-            <span class="tar-ftype ${typeClass}">${_esc(ext)}</span>
-            ${certTypeBadge}
-            ${verdictBadge}
-            <span class="tar-fsize">${_formatBytes(entry.size)}</span>`;
+          row.innerHTML =
+            `<span class="tar-fname">${_esc(name)}</span>` +
+            `<span class="tar-ftype ${typeClass}">${_esc(ext)}</span>` +
+            logTypeBadge +
+            certTypeBadge +
+            verdictBadge +
+            `<span class="tar-fsize">${_formatBytes(entry.size)}</span>`;
           listEl.appendChild(row);
         });
       }

@@ -17,14 +17,30 @@ window.RulesCat29 = (function() {
       : Utils.info('INI_LOG_PRESENT', 'initialize-Log vorhanden', CAT, 'Kein initialize-Log (partieller Export möglich).', '', 'BSI TR-03151-1 §4.6'));
 
     results.push(iniLogs.every(l=>l.eventType==='initialize')
-      ? Utils.pass('INI_LOG_EVTYPE', 'eventType=initialize', CAT, 'Korrekt.', '', 'BSI TR-03151-1 §4.6')
-      : Utils.fail('INI_LOG_EVTYPE', 'eventType=initialize', CAT, 'Falscher eventType.', '', 'BSI TR-03151-1 §4.6'));
+      ? Utils.pass('INI_LOG_EVTYPE', 'eventType=initialize', CAT, `✓ Alle ${iniLogs.length} initialize-Log(s) haben eventType = "initialize".`, '', 'BSI TR-03151-1 §4.6')
+      : Utils.fail('INI_LOG_EVTYPE', 'eventType=initialize', CAT,
+          `Abweichende eventType-Werte: ${iniLogs.filter(l=>l.eventType!=='initialize').map(l=>'"'+l.eventType+'" in '+l._filename).join(', ')}`,
+          'eventType muss "initialize" sein.', 'BSI TR-03151-1 §4.6'));
 
-    const wrongOrigin = iniLogs.filter(l=>l.eventOrigin!=='se');
-    results.push(iniLogs.length===0 ? Utils.skip('INI_LOG_EVORIGIN','eventOrigin=se',CAT,'Kein initialize-Log.','','BSI TR-03151-1 §4.6')
-      : wrongOrigin.length===0
-        ? Utils.pass('INI_LOG_EVORIGIN','eventOrigin=se',CAT,'Korrekt.','','BSI TR-03151-1 §4.6')
-        : Utils.fail('INI_LOG_EVORIGIN','eventOrigin=se',CAT,`${wrongOrigin.length} Logs mit falschem eventOrigin.`,'','BSI TR-03151-1 §4.6'));
+    // v1 expects eventOrigin = 'integration-interface' for initialize (BSI TR-03151-1)
+    const EXPECTED_INI_ORIGIN = 'integration-interface';
+    const wrongOrigin = iniLogs.filter(l => (l.eventOrigin || '') !== EXPECTED_INI_ORIGIN);
+    if (iniLogs.length === 0) {
+      results.push(Utils.skip('INI_LOG_EVORIGIN', 'initialize: eventOrigin = integration-interface', CAT,
+        'Kein initialize-Log vorhanden.', '', 'BSI TR-03151-1 §4.6'));
+    } else if (wrongOrigin.length === 0) {
+      results.push(Utils.pass('INI_LOG_EVORIGIN', 'initialize: eventOrigin = integration-interface', CAT,
+        `✓ Alle ${iniLogs.length} initialize-Log(s) haben eventOrigin = "integration-interface".`,
+        'eventOrigin muss "integration-interface" sein.', 'BSI TR-03151-1 §4.6'));
+    } else {
+      const detail = wrongOrigin.map(l =>
+        `  ${l._filename}:\n    eventOrigin = "${l.eventOrigin || '(fehlt)'}"  ✗ erwartet: "integration-interface"`
+      ).join('\n');
+      results.push(Utils.fail('INI_LOG_EVORIGIN', 'initialize: eventOrigin = integration-interface', CAT,
+        `${wrongOrigin.length} von ${iniLogs.length} initialize-Log(s) mit falschem eventOrigin:\n${detail}`,
+        'eventOrigin muss "integration-interface" sein (BSI TR-03151-1 SystemLogMessage, II_INI_01).',
+        'BSI TR-03151-1 §4.6'));
+    }
 
     results.push(iniLogs.length <= 1
       ? Utils.pass('INI_LOG_ONCE','initialize-Log höchstens einmal',CAT,`${iniLogs.length} initialize-Log(s).`,'','BSI TR-03151-1 §4.6')
