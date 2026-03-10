@@ -35,8 +35,19 @@
     <!-- SIDEBAR -->
     <nav class="sidebar" id="sidebar" style="display:none">
       <div class="sidebar-section">
-        <div class="sidebar-section-title" onclick="app.navigateTo('overview')">
-          📊 Übersicht
+        <div class="sidebar-nav-item" id="nav-overview" onclick="app.navigateTo('overview')">
+          <span class="snav-icon">📊</span>
+          <span class="snav-label">Übersicht</span>
+        </div>
+        <div class="sidebar-nav-item" id="nav-all-tests" onclick="app.navigateTo('all-tests')">
+          <span class="snav-icon">🔍</span>
+          <span class="snav-label">Alle Tests</span>
+          <span class="snav-badge" id="nav-all-tests-badge"></span>
+        </div>
+        <div class="sidebar-nav-item" id="nav-files" onclick="app.navigateTo('files')">
+          <span class="snav-icon">🗂</span>
+          <span class="snav-label">Dateien im Archiv</span>
+          <span class="snav-badge" id="nav-files-badge"></span>
         </div>
       </div>
       <div class="sidebar-section">
@@ -124,7 +135,7 @@
       <div class="stat-card"><div class="stat-value sv-fail" id="stat-fail">0</div><div class="stat-label">Fehler</div><div class="stat-bar"><div class="stat-bar-fill" style="background:var(--fail)" id="bar-fail"></div></div></div>
       <div class="stat-card"><div class="stat-value sv-warn" id="stat-warn">0</div><div class="stat-label">Warnungen</div><div class="stat-bar"><div class="stat-bar-fill" style="background:var(--warn)" id="bar-warn"></div></div></div>
       <div class="stat-card"><div class="stat-value sv-info" id="stat-info">0</div><div class="stat-label">Info</div><div class="stat-bar"><div class="stat-bar-fill" style="background:var(--info)" id="bar-info"></div></div></div>
-      <div class="stat-card"><div class="stat-value sv-skip" id="stat-skip">0</div><div class="stat-label">N/A</div><div class="stat-bar"><div class="stat-bar-fill" style="background:var(--skip)" id="bar-skip"></div></div></div>
+      <div class="stat-card"><div class="stat-value sv-skip" id="stat-skip">0</div><div class="stat-label">Skipped</div><div class="stat-bar"><div class="stat-bar-fill" style="background:var(--skip)" id="bar-skip"></div></div></div>
     </div>
 
     <!-- Meta Info -->
@@ -143,8 +154,6 @@
       </div>
     </div>
 
-    <!-- Files Section (with stats + filters + colored list) -->
-    <div id="ov-files-section"></div>
   </div>
 </template>
 
@@ -152,7 +161,7 @@
 <template id="tpl-category">
   <div>
     <div class="cat-page-header">
-      <button class="btn btn-secondary" onclick="app.navigateTo('overview')" style="padding:5px 10px;font-size:12px">← Übersicht</button>
+      <button class="btn btn-secondary" onclick="app.navigateTo('files')" style="padding:5px 10px;font-size:12px">← Dateien im Archiv</button>
       <div>
         <div class="cat-page-num" id="cp-num"></div>
         <div class="cat-page-title" id="cp-title"></div>
@@ -234,7 +243,9 @@
 <template id="tpl-sidebar-cat">
   <div class="sidebar-cat-item">
     <span class="sidebar-cat-name"></span>
-    <span class="sidebar-cat-count"></span>
+    <div class="sidebar-cat-badges">
+      <div class="sidebar-mini-counts"></div>
+    </div>
   </div>
 </template>
 

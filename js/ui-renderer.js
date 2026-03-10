@@ -83,264 +83,346 @@ window.UIRenderer = (function () {
       ['Checks gesamt', stats.total],
     ]);
 
-    // ── Build the new files section ────────────────────────────────────────
-    const filesSec = el.querySelector('#ov-files-section');
-    if (filesSec && tarResult) {
-      const allFiles = [...tarResult.files.entries()].sort((a,b) => a[0].localeCompare(b[0]));
+    container.appendChild(el);
+  }
 
-      // Collect unique filter values from parsed logs
-      const evtTypes  = [...new Set(sysLogs.map(l => l.eventType).filter(Boolean))].sort();
-      const opTypes   = [...new Set(txnLogs.map(l => l.operationType).filter(Boolean))].sort();
-      const clientIds = [...new Set(txnLogs.map(l => l.clientId).filter(Boolean))].sort();
+  function renderAllFiles(container, runResult) {
+    container.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.className = 'card';
+    wrap.style.cssText = 'margin:0';
 
-      // Build per-file metadata for filtering
-      const fileMeta = allFiles.map(([name, entry]) => {
-        const ext     = name.split('.').pop().toLowerCase();
-        const isLog   = ext === 'log';
-        const isCert  = ['pem','cer','crt','cert','der'].includes(ext);
-        const basename= name.split('/').pop();
-        const logEntry= isLog  ? (parsedLogs||[]).find(l => l._filename === basename) : null;
-        const certEntry= isCert ? (parsedCerts||[]).find(c => c._filename === basename) : null;
-        const logType = logEntry?.logType || null; // 'sys'|'txn'|'audit'
-        const perFile = isLog  ? (perFileResults?.[basename] || perFileResults?.[name] || []) : null;
-        const perCert = isCert ? (perCertResults?.[basename] || perCertResults?.[name] || []) : null;
-        const rs      = perFile || perCert || [];
-        const nf      = rs.filter(r => (r.status||'').toUpperCase() === 'FAIL').length;
-        const nw      = rs.filter(r => (r.status||'').toUpperCase() === 'WARN').length;
-        const np      = rs.filter(r => (r.status||'').toUpperCase() === 'PASS').length;
-        return { name, entry, ext, isLog, isCert, basename, logEntry, certEntry, logType, rs, nf, nw, np };
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'padding:16px 20px 0;';
+    hdr.innerHTML = '<h2 style="font-size:16px;font-weight:700;color:var(--text);margin:0 0 12px">🗂 Dateien im Archiv</h2>';
+    wrap.appendChild(hdr);
+
+    const inner = document.createElement('div');
+    inner.style.cssText = 'padding:0 20px 20px';
+    _buildFilesSection(inner, runResult);
+    wrap.appendChild(inner);
+
+    container.appendChild(wrap);
+  }
+
+  function renderAllTests(container, runResult, filterStatus) {
+    container.innerHTML = '';
+    filterStatus = filterStatus || 'all';
+
+    const { byCategory, stats } = runResult;
+    const allResults = Object.entries(byCategory).flatMap(([cat, res]) =>
+      res.map(r => ({ ...r, _cat: cat }))
+    );
+
+    const nf = allResults.filter(r => r.status === 'FAIL').length;
+    const nw = allResults.filter(r => r.status === 'WARN').length;
+    const np = allResults.filter(r => r.status === 'PASS').length;
+    const ni = allResults.filter(r => r.status === 'INFO').length;
+    const ns = allResults.filter(r => r.status === 'SKIP').length;
+
+    const wrap = document.createElement('div');
+
+    // Header
+    const hdr = document.createElement('div');
+    hdr.className = 'card';
+    hdr.style.cssText = 'margin-bottom:16px;padding:16px 20px';
+    hdr.innerHTML = `
+      <h2 style="font-size:16px;font-weight:700;color:var(--text);margin:0 0 8px">🔍 Alle Tests</h2>
+      <div style="font-size:13px;color:var(--text-muted)">
+        ${allResults.length} Prüfungen aus ${Object.keys(byCategory).length} Kategorien
+        &nbsp;·&nbsp;
+        <span style="color:var(--fail)">✗ ${nf}</span> &nbsp;
+        <span style="color:var(--warn)">⚠ ${nw}</span> &nbsp;
+        <span style="color:var(--pass)">✓ ${np}</span> &nbsp;
+        <span style="color:var(--info)">ℹ ${ni}</span> &nbsp;
+        <span style="color:var(--text-muted)">– ${ns}</span>
+      </div>
+      <div class="filter-bar" style="margin-top:12px;flex-wrap:wrap;gap:6px">
+        ${['all','FAIL','WARN','PASS','INFO','SKIP'].map(f =>
+          `<button class="filter-btn${filterStatus===f?' active':''}" onclick="app.setAllTestsFilter('${f}',this)">${
+            {all:'Alle',FAIL:'✗ Fehler',WARN:'⚠ Warnung',PASS:'✓ OK',INFO:'ℹ Info',SKIP:'– Skipped'}[f]
+          }</button>`
+        ).join('')}
+      </div>`;
+    wrap.appendChild(hdr);
+
+    // Grouped list
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.overflow = 'hidden';
+
+    const filtered = filterStatus === 'all' ? allResults : allResults.filter(r => r.status === filterStatus);
+
+    if (filtered.length === 0) {
+      card.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted)">Keine Prüfungen für diesen Filter.</div>';
+    } else {
+      // Group by category, showing a group header before each category
+      let lastCat = null;
+      filtered.forEach(r => {
+        if (r._cat !== lastCat) {
+          lastCat = r._cat;
+          const catHdr = document.createElement('div');
+          catHdr.style.cssText = 'padding:8px 16px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);background:var(--sidebar-bg);border-top:1px solid var(--border-light);cursor:pointer';
+          catHdr.textContent = r._cat;
+          catHdr.onclick = () => app.navigateTo('cat:' + r._cat);
+          card.appendChild(catHdr);
+        }
+        card.appendChild(_buildCheckRow(r));
       });
+    }
+    wrap.appendChild(card);
+    container.appendChild(wrap);
+  }
 
-      // ── Header ──────────────────────────────────────────────────────────
-      const hdr = document.createElement('div');
-      hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px';
-      hdr.innerHTML = `
-        <div style="font-size:13px;font-weight:700;color:var(--text)">📁 Dateien im Archiv
-          <span style="font-size:12px;font-weight:400;color:var(--text-muted);margin-left:6px">(${allFiles.length})</span>
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-          ${sysLogs.length   ? `<span class="ftype-stat" style="background:#dbeafe;color:#1e40af">${sysLogs.length} SystemLog</span>` : ''}
-          ${txnLogs.length   ? `<span class="ftype-stat" style="background:#f3e8ff;color:#6b21a8">${txnLogs.length} TransactionLog</span>` : ''}
-          ${auditLogs.length ? `<span class="ftype-stat" style="background:#fef3c7;color:#92400e">${auditLogs.length} AuditLog</span>` : ''}
-          ${certCount        ? `<span class="ftype-stat" style="background:#dcfce7;color:#166534">${certCount} Zertifikat${certCount!==1?'e':''}</span>` : ''}
-        </div>`;
-      filesSec.appendChild(hdr);
+  function _buildFilesSection(container, runResult) {
+    const { parsedLogs, parsedCerts, tarResult, perFileResults, perCertResults } = runResult;
+    const sysLogs   = (parsedLogs||[]).filter(l => l.logType === 'sys');
+    const txnLogs   = (parsedLogs||[]).filter(l => l.logType === 'txn');
+    const auditLogs = (parsedLogs||[]).filter(l => l.logType === 'audit');
+    const certCount = (parsedCerts||[]).length;
 
-      // ── Filter Bar ───────────────────────────────────────────────────────
-      const filterBar = document.createElement('div');
-      filterBar.className = 'file-filter-bar';
+    const allFiles = [...tarResult.files.entries()].sort((a,b) => a[0].localeCompare(b[0]));
+    const evtTypes  = [...new Set(sysLogs.map(l => l.eventType).filter(Boolean))].sort();
+    const opTypes   = [...new Set(txnLogs.map(l => l.operationType).filter(Boolean))].sort();
+    const clientIds = [...new Set(txnLogs.map(l => l.clientId).filter(Boolean))].sort();
 
-      // Type filter buttons
-      const typeFilters = [
-        { key: 'all',   label: 'Alle', count: allFiles.length },
-        { key: 'sys',   label: 'SystemLog',      count: sysLogs.length,   show: sysLogs.length > 0 },
-        { key: 'txn',   label: 'TransactionLog', count: txnLogs.length,   show: txnLogs.length > 0 },
-        { key: 'audit', label: 'AuditLog',        count: auditLogs.length, show: auditLogs.length > 0 },
-        { key: 'cert',  label: 'Zertifikate',     count: certCount,        show: certCount > 0 },
-      ].filter(f => f.show !== false);
+    const fileMeta = allFiles.map(([name, entry]) => {
+      const ext     = name.split('.').pop().toLowerCase();
+      const isLog   = ext === 'log';
+      const isCert  = ['pem','cer','crt','cert','der'].includes(ext);
+      const basename= name.split('/').pop();
+      const logEntry= isLog  ? (parsedLogs||[]).find(l => l._filename === basename) : null;
+      const certEntry= isCert ? (parsedCerts||[]).find(c => c._filename === basename) : null;
+      const logType = logEntry?.logType || null;
+      const perFile = isLog  ? (perFileResults?.[basename] || perFileResults?.[name] || []) : null;
+      const perCert = isCert ? (perCertResults?.[basename] || perCertResults?.[name] || []) : null;
+      const rs      = perFile || perCert || [];
+      const nf      = rs.filter(r => (r.status||'').toUpperCase() === 'FAIL').length;
+      const nw      = rs.filter(r => (r.status||'').toUpperCase() === 'WARN').length;
+      const np      = rs.filter(r => (r.status||'').toUpperCase() === 'PASS').length;
+      return { name, entry, ext, isLog, isCert, basename, logEntry, certEntry, logType, rs, nf, nw, np };
+    });
 
-      const typeRow = document.createElement('div');
-      typeRow.className = 'ff-type-row';
-      typeFilters.forEach(tf => {
+    // Header
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px';
+    hdr.innerHTML = `
+      <div style="font-size:13px;font-weight:700;color:var(--text)">
+        ${allFiles.length} Dateien
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        ${sysLogs.length   ? `<span class="ftype-stat" style="background:#dbeafe;color:#1e40af">${sysLogs.length} SystemLog</span>` : ''}
+        ${txnLogs.length   ? `<span class="ftype-stat" style="background:#f3e8ff;color:#6b21a8">${txnLogs.length} TransactionLog</span>` : ''}
+        ${auditLogs.length ? `<span class="ftype-stat" style="background:#fef3c7;color:#92400e">${auditLogs.length} AuditLog</span>` : ''}
+        ${certCount        ? `<span class="ftype-stat" style="background:#dcfce7;color:#166534">${certCount} Zertifikat${certCount!==1?'e':''}</span>` : ''}
+      </div>`;
+    container.appendChild(hdr);
+
+    // Filter bar
+    const filterBar = document.createElement('div');
+    filterBar.className = 'file-filter-bar';
+
+    const typeFilters = [
+      { key: 'all',   label: 'Alle', count: allFiles.length },
+      { key: 'sys',   label: 'SystemLog',      count: sysLogs.length,   show: sysLogs.length > 0 },
+      { key: 'txn',   label: 'TransactionLog', count: txnLogs.length,   show: txnLogs.length > 0 },
+      { key: 'audit', label: 'AuditLog',        count: auditLogs.length, show: auditLogs.length > 0 },
+      { key: 'cert',  label: 'Zertifikate',     count: certCount,        show: certCount > 0 },
+    ].filter(f => f.show !== false);
+
+    const typeRow = document.createElement('div');
+    typeRow.className = 'ff-type-row';
+    typeFilters.forEach(tf => {
+      const btn = document.createElement('button');
+      btn.className = 'ff-type-btn' + (tf.key === 'all' ? ' active' : '');
+      btn.dataset.typeKey = tf.key;
+      btn.innerHTML = `${_esc(tf.label)} <span class="ff-count">${tf.count}</span>`;
+      typeRow.appendChild(btn);
+    });
+    filterBar.appendChild(typeRow);
+
+    const filesWithFail = fileMeta.filter(m => m.nf > 0).length;
+    const filesWithWarn = fileMeta.filter(m => m.nw > 0 && m.nf === 0).length;
+    if (filesWithFail + filesWithWarn > 0) {
+      const verdictRow = document.createElement('div');
+      verdictRow.className = 'ff-type-row ff-verdict-row';
+      verdictRow.style.marginTop = '2px';
+      const mkVBtn = (key, label, count, colorClass) => {
         const btn = document.createElement('button');
-        btn.className = 'ff-type-btn' + (tf.key === 'all' ? ' active' : '');
-        btn.dataset.typeKey = tf.key;
-        btn.innerHTML = `${_esc(tf.label)} <span class="ff-count">${tf.count}</span>`;
-        typeRow.appendChild(btn);
-      });
-      filterBar.appendChild(typeRow);
-
-      // Search row
-      const searchRow = document.createElement('div');
-      searchRow.className = 'ff-search-row';
-      searchRow.innerHTML = `
-        <input class="ff-search" id="ff-text-search" type="text" placeholder="Dateiname / Inhalt suchen…">
-        <div class="ff-cond-filters" id="ff-cond-filters" style="display:none"></div>`;
-      filterBar.appendChild(searchRow);
-      filesSec.appendChild(filterBar);
-
-      // Conditional filters (EventType / OpType comboboxes)
-      const condEl = filterBar.querySelector('#ff-cond-filters');
-      const buildCondFilters = typeKey => {
-        condEl.innerHTML = '';
-        condEl.style.display = 'none';
-        if (typeKey === 'sys' && evtTypes.length > 0) {
-          condEl.style.display = 'flex';
-          const sel = document.createElement('select');
-          sel.className = 'ff-select';
-          sel.id = 'ff-evttype';
-          sel.innerHTML = `<option value="">Alle eventTypes (${evtTypes.length})</option>` +
-            evtTypes.map(e => `<option value="${_esc(e)}">${_esc(e)}</option>`).join('');
-          condEl.appendChild(sel);
-        } else if (typeKey === 'txn') {
-          condEl.style.display = 'flex';
-          if (opTypes.length > 0) {
-            const sel = document.createElement('select');
-            sel.className = 'ff-select';
-            sel.id = 'ff-optype';
-            sel.innerHTML = `<option value="">Alle Operationen</option>` +
-              opTypes.map(o => `<option value="${_esc(o)}">${_esc(o)}</option>`).join('');
-            condEl.appendChild(sel);
-          }
-          if (clientIds.length > 0) {
-            const sel2 = document.createElement('select');
-            sel2.className = 'ff-select';
-            sel2.id = 'ff-client';
-            sel2.innerHTML = `<option value="">Alle Clients (${clientIds.length})</option>` +
-              clientIds.map(c => `<option value="${_esc(c)}">Client: ${_esc(c)}</option>`).join('');
-            condEl.appendChild(sel2);
-          }
-          const txnInput = document.createElement('input');
-          txnInput.className = 'ff-search ff-txn-search';
-          txnInput.id = 'ff-txnnum';
-          txnInput.type = 'text';
-          txnInput.placeholder = 'Txn-Nr. filtern…';
-          txnInput.style.width = '120px';
-          condEl.appendChild(txnInput);
-        }
+        btn.className = `ff-type-btn ff-verdict-btn ${colorClass}`;
+        btn.dataset.verdictKey = key;
+        btn.innerHTML = `${_esc(label)} <span class="ff-count">${count}</span>`;
+        return btn;
       };
-
-      // ── File List ────────────────────────────────────────────────────────
-      const listWrap = document.createElement('div');
-      listWrap.className = 'card';
-      listWrap.style.overflow = 'hidden';
-      const list = document.createElement('div');
-      list.className = 'tar-file-list';
-      list.id = 'ov-tar-file-list';
-      listWrap.appendChild(list);
-      filesSec.appendChild(listWrap);
-
-      // Build all rows
-      const rows = fileMeta.map(m => {
-        const row = document.createElement('div');
-        row.className = 'tar-file-row tar-file-row-v2';
-        row.dataset.typeKey    = m.logType || (m.isCert ? 'cert' : 'other');
-        row.dataset.nameSearch = m.name.toLowerCase();
-
-        // Coloring by verdict
-        if (m.nf > 0) { row.style.borderLeft = '3px solid var(--fail)'; row.style.background = 'rgba(220,38,38,.04)'; }
-        else if (m.nw > 0) { row.style.borderLeft = '3px solid var(--warn)'; row.style.background = 'rgba(217,119,6,.04)'; }
-        else if (m.np > 0) { row.style.borderLeft = '3px solid var(--pass)'; }
-
-        // Dataset for clicks
-        if (m.isLog && m.logEntry)  { row.dataset.logFile = m.name;  row.style.cursor = 'pointer'; row.title = 'Klicken für Datei-Details'; }
-        if (m.isCert && m.certEntry){ row.dataset.certFile = m.name; row.style.cursor = 'pointer'; row.title = 'Klicken für Zertifikat-Details'; }
-
-        // Content-based search attributes for smart filtering
-        if (m.logEntry) {
-          if (m.logEntry.eventType)       row.dataset.evtType  = m.logEntry.eventType;
-          if (m.logEntry.operationType)   row.dataset.opType   = m.logEntry.operationType;
-          if (m.logEntry.clientId)        row.dataset.clientId = String(m.logEntry.clientId);
-          if (m.logEntry.transactionNumber != null) row.dataset.txnNum = String(m.logEntry.transactionNumber);
-        }
-
-        // Badges
-        const ltMap = {
-          sys:   { label:'SystemLog',      col:'#1e40af', bg:'#dbeafe' },
-          txn:   { label:'TransactionLog', col:'#6b21a8', bg:'#f3e8ff' },
-          audit: { label:'AuditLog',       col:'#92400e', bg:'#fef3c7' },
-        };
-        const badge = (col, bg, txt) => `<span style="padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;color:${col};background:${bg};border:1px solid ${col}40;white-space:nowrap;flex-shrink:0">${txt}</span>`;
-
-        let logTypeBadge = '';
-        if (m.logType && ltMap[m.logType]) {
-          const { label, col, bg } = ltMap[m.logType];
-          logTypeBadge = badge(col, bg, label);
-          // Sub-label for txn
-          if (m.logType === 'txn' && m.logEntry?.operationType) {
-            const opShort = {startTransaction:'Start', updateTransaction:'Update', finishTransaction:'Finish'}[m.logEntry.operationType] || m.logEntry.operationType;
-            logTypeBadge += badge('#374151','#f3f4f6', opShort);
-          }
-        }
-
-        let certTypeBadge = '';
-        if (m.isCert && m.certEntry && !m.certEntry.parseError) {
-          const iKey = JSON.stringify({ CN: m.certEntry.issuerDN?.CN, O: m.certEntry.issuerDN?.O });
-          const sKey = JSON.stringify({ CN: m.certEntry.subjectDN?.CN, O: m.certEntry.subjectDN?.O });
-          const ct = m.certEntry.isCA === true ? (iKey === sKey ? 'root' : 'subca') : 'leaf';
-          const ctM = { root:{col:'#7c3aed',bg:'#f5f3ff',lbl:'Root-CA'}, subca:{col:'#0369a1',bg:'#e0f2fe',lbl:'Sub-CA'}, leaf:{col:'#059669',bg:'#ecfdf5',lbl:'Blatt'} }[ct];
-          if (ctM) certTypeBadge = badge(ctM.col, ctM.bg, ctM.lbl);
-        }
-
-        const verdictBadge = m.rs.length > 0
-          ? (m.nf > 0 ? `<span class="sb-mini sb-mini-fail">✗ ${m.nf}</span>`
-            : m.nw > 0 ? `<span class="sb-mini sb-mini-warn">⚠ ${m.nw}</span>`
-            : m.np > 0 ? `<span class="sb-mini sb-mini-pass">✓</span>` : '') : '';
-
-        const typeClass = `ftype-${['log','pem','cer','crt','cert','csv'].includes(m.ext) ? m.ext : 'other'}`;
-        row.innerHTML =
-          `<span class="tar-fname">${_esc(m.name)}</span>` +
-          `<span class="tar-ftype ${typeClass}" style="flex-shrink:0">${_esc(m.ext)}</span>` +
-          logTypeBadge + certTypeBadge + verdictBadge +
-          `<span class="tar-fsize">${_formatBytes(m.entry.size)}</span>`;
-
-        return row;
-      });
-
-      rows.forEach(r => list.appendChild(r));
-
-      // ── Filter logic ────────────────────────────────────────────────────
-      let currentType = 'all';
-
-      const applyFilter = () => {
-        const textVal    = (filterBar.querySelector('#ff-text-search')?.value || '').toLowerCase();
-        const evtVal     = (filterBar.querySelector('#ff-evttype')?.value  || '').toLowerCase();
-        const opVal      = (filterBar.querySelector('#ff-optype')?.value   || '').toLowerCase();
-        const clientVal  = (filterBar.querySelector('#ff-client')?.value   || '').toLowerCase();
-        const txnVal     = (filterBar.querySelector('#ff-txnnum')?.value   || '').toLowerCase();
-
-        rows.forEach(r => {
-          const tk   = r.dataset.typeKey   || 'other';
-          const name = r.dataset.nameSearch || '';
-
-          // Type filter
-          const typeOk = currentType === 'all'
-            || currentType === tk
-            || (currentType === 'cert' && tk !== 'sys' && tk !== 'txn' && tk !== 'audit');
-
-          if (!typeOk) { r.style.display = 'none'; return; }
-
-          // Text search
-          if (textVal && !name.includes(textVal)) { r.style.display = 'none'; return; }
-
-          // Cond filters
-          if (evtVal   && (r.dataset.evtType  || '').toLowerCase() !== evtVal)  { r.style.display = 'none'; return; }
-          if (opVal    && (r.dataset.opType   || '').toLowerCase() !== opVal)    { r.style.display = 'none'; return; }
-          if (clientVal&& (r.dataset.clientId || '').toLowerCase() !== clientVal){ r.style.display = 'none'; return; }
-          if (txnVal   && !(r.dataset.txnNum  || '').toLowerCase().includes(txnVal)){ r.style.display = 'none'; return; }
-
-          r.style.display = '';
-        });
-
-        // Update visible count on active button
-        typeRow.querySelectorAll('.ff-type-btn').forEach(btn => {
-          if (btn.dataset.typeKey === currentType) {
-            const visible = rows.filter(r => r.style.display !== 'none').length;
-            const orig    = typeFilters.find(f => f.key === currentType);
-            const total   = orig?.count ?? visible;
-            btn.querySelector('.ff-count').textContent = visible < total ? `${visible}/${total}` : String(total);
-          }
-        });
-      };
-
-      // Type button clicks
-      typeRow.addEventListener('click', e => {
-        const btn = e.target.closest('.ff-type-btn');
-        if (!btn) return;
-        typeRow.querySelectorAll('.ff-type-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentType = btn.dataset.typeKey;
-        buildCondFilters(currentType);
-        // Re-attach listeners after rebuilding cond filters
-        condEl.querySelectorAll('select, input').forEach(el2 => el2.addEventListener('input', applyFilter));
-        applyFilter();
-      });
-
-      // Text search
-      filterBar.querySelector('#ff-text-search')?.addEventListener('input', applyFilter);
+      if (filesWithFail > 0) verdictRow.appendChild(mkVBtn('fail', '✗ Fehler', filesWithFail, 'ff-vbtn-fail'));
+      if (filesWithWarn > 0) verdictRow.appendChild(mkVBtn('warn', '⚠ Warnungen', filesWithWarn, 'ff-vbtn-warn'));
+      const clearBtn = document.createElement('button');
+      clearBtn.className = 'ff-type-btn ff-verdict-btn ff-vbtn-clear';
+      clearBtn.dataset.verdictKey = '';
+      clearBtn.style.display = 'none';
+      clearBtn.textContent = '× Filter aufheben';
+      verdictRow.appendChild(clearBtn);
+      filterBar.appendChild(verdictRow);
     }
 
-    container.appendChild(el);
+    const searchRow = document.createElement('div');
+    searchRow.className = 'ff-search-row';
+    searchRow.innerHTML = `
+      <input class="ff-search" id="ff-text-search" type="text" placeholder="Dateiname / Inhalt suchen…">
+      <div class="ff-cond-filters" id="ff-cond-filters" style="display:none"></div>`;
+    filterBar.appendChild(searchRow);
+    container.appendChild(filterBar);
+
+    const condEl = filterBar.querySelector('#ff-cond-filters');
+    const buildCondFilters = typeKey => {
+      condEl.innerHTML = '';
+      condEl.style.display = 'none';
+      if (typeKey === 'sys' && evtTypes.length > 0) {
+        condEl.style.display = 'flex';
+        const sel = document.createElement('select');
+        sel.className = 'ff-select'; sel.id = 'ff-evttype';
+        sel.innerHTML = `<option value="">Alle eventTypes (${evtTypes.length})</option>` +
+          evtTypes.map(e => `<option value="${_esc(e)}">${_esc(e)}</option>`).join('');
+        condEl.appendChild(sel);
+      } else if (typeKey === 'txn') {
+        condEl.style.display = 'flex';
+        if (opTypes.length > 0) {
+          const sel = document.createElement('select');
+          sel.className = 'ff-select'; sel.id = 'ff-optype';
+          sel.innerHTML = `<option value="">Alle Operationen</option>` +
+            opTypes.map(o => `<option value="${_esc(o)}">${_esc(o)}</option>`).join('');
+          condEl.appendChild(sel);
+        }
+        if (clientIds.length > 0) {
+          const sel2 = document.createElement('select');
+          sel2.className = 'ff-select'; sel2.id = 'ff-client';
+          sel2.innerHTML = `<option value="">Alle Clients (${clientIds.length})</option>` +
+            clientIds.map(c => `<option value="${_esc(c)}">Client: ${_esc(c)}</option>`).join('');
+          condEl.appendChild(sel2);
+        }
+        const txnInput = document.createElement('input');
+        txnInput.className = 'ff-search ff-txn-search'; txnInput.id = 'ff-txnnum';
+        txnInput.type = 'text'; txnInput.placeholder = 'Txn-Nr. filtern…'; txnInput.style.width = '120px';
+        condEl.appendChild(txnInput);
+      }
+    };
+
+    const listWrap = document.createElement('div');
+    listWrap.className = 'card'; listWrap.style.overflow = 'hidden';
+    const list = document.createElement('div');
+    list.className = 'tar-file-list'; list.id = 'ov-tar-file-list';
+    listWrap.appendChild(list);
+    container.appendChild(listWrap);
+
+    const rows = fileMeta.map(m => {
+      const row = document.createElement('div');
+      row.className = 'tar-file-row tar-file-row-v2';
+      row.dataset.typeKey    = m.logType || (m.isCert ? 'cert' : 'other');
+      row.dataset.nameSearch = m.name.toLowerCase();
+      if (m.nf > 0) { row.style.borderLeft = '3px solid var(--fail)'; row.style.background = 'rgba(220,38,38,.04)'; }
+      else if (m.nw > 0) { row.style.borderLeft = '3px solid var(--warn)'; row.style.background = 'rgba(217,119,6,.04)'; }
+      else if (m.np > 0) { row.style.borderLeft = '3px solid var(--pass)'; }
+      if (m.isLog && m.logEntry)  { row.dataset.logFile  = m.name; row.style.cursor = 'pointer'; row.title = 'Klicken für Datei-Details'; }
+      if (m.isCert && m.certEntry){ row.dataset.certFile = m.name; row.style.cursor = 'pointer'; row.title = 'Klicken für Zertifikat-Details'; }
+      if (m.logEntry) {
+        if (m.logEntry.eventType)       row.dataset.evtType  = m.logEntry.eventType;
+        if (m.logEntry.operationType)   row.dataset.opType   = m.logEntry.operationType;
+        if (m.logEntry.clientId)        row.dataset.clientId = String(m.logEntry.clientId);
+        if (m.logEntry.transactionNumber != null) row.dataset.txnNum = String(m.logEntry.transactionNumber);
+      }
+      const ltMap = {
+        sys:   { label:'SystemLog',      col:'#1e40af', bg:'#dbeafe' },
+        txn:   { label:'TransactionLog', col:'#6b21a8', bg:'#f3e8ff' },
+        audit: { label:'AuditLog',       col:'#92400e', bg:'#fef3c7' },
+      };
+      const badge = (col, bg, txt) => `<span style="padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;color:${col};background:${bg};border:1px solid ${col}40;white-space:nowrap;flex-shrink:0">${txt}</span>`;
+      let logTypeBadge = '';
+      if (m.logType && ltMap[m.logType]) {
+        const { label, col, bg } = ltMap[m.logType];
+        logTypeBadge = badge(col, bg, label);
+        if (m.logType === 'txn' && m.logEntry?.operationType) {
+          const opShort = {startTransaction:'Start', updateTransaction:'Update', finishTransaction:'Finish'}[m.logEntry.operationType] || m.logEntry.operationType;
+          logTypeBadge += badge('#374151','#f3f4f6', opShort);
+        }
+      }
+      let certTypeBadge = '';
+      if (m.isCert && m.certEntry && !m.certEntry.parseError) {
+        const iKey = JSON.stringify({ CN: m.certEntry.issuerDN?.CN, O: m.certEntry.issuerDN?.O });
+        const sKey = JSON.stringify({ CN: m.certEntry.subjectDN?.CN, O: m.certEntry.subjectDN?.O });
+        const ct = m.certEntry.isCA === true ? (iKey === sKey ? 'root' : 'subca') : 'leaf';
+        const ctM = { root:{col:'#7c3aed',bg:'#f5f3ff',lbl:'Root-CA'}, subca:{col:'#0369a1',bg:'#e0f2fe',lbl:'Sub-CA'}, leaf:{col:'#059669',bg:'#ecfdf5',lbl:'Blatt'} }[ct];
+        if (ctM) certTypeBadge = badge(ctM.col, ctM.bg, ctM.lbl);
+      }
+      const verdictBadge = m.rs.length > 0
+        ? (m.nf > 0 ? `<span class="sb-mini sb-mini-fail">✗ ${m.nf}</span>`
+          : m.nw > 0 ? `<span class="sb-mini sb-mini-warn">⚠ ${m.nw}</span>`
+          : m.np > 0 ? `<span class="sb-mini sb-mini-pass">✓</span>` : '') : '';
+      const typeClass = `ftype-${['log','pem','cer','crt','cert','csv'].includes(m.ext) ? m.ext : 'other'}`;
+      row.innerHTML =
+        `<span class="tar-fname">${_esc(m.name)}</span>` +
+        `<span class="tar-ftype ${typeClass}" style="flex-shrink:0">${_esc(m.ext)}</span>` +
+        logTypeBadge + certTypeBadge + verdictBadge +
+        `<span class="tar-fsize">${_formatBytes(m.entry.size)}</span>`;
+      return row;
+    });
+
+    rows.forEach(r => list.appendChild(r));
+
+    let currentType = 'all', currentVerdict = '';
+    const applyFilter = () => {
+      const textVal   = (filterBar.querySelector('#ff-text-search')?.value || '').toLowerCase();
+      const evtVal    = (filterBar.querySelector('#ff-evttype')?.value  || '').toLowerCase();
+      const opVal     = (filterBar.querySelector('#ff-optype')?.value   || '').toLowerCase();
+      const clientVal = (filterBar.querySelector('#ff-client')?.value   || '').toLowerCase();
+      const txnVal    = (filterBar.querySelector('#ff-txnnum')?.value   || '').toLowerCase();
+      let visible = 0;
+      rows.forEach((r, idx) => {
+        const m  = fileMeta[idx];
+        const tk = r.dataset.typeKey || 'other';
+        const name = r.dataset.nameSearch || '';
+        const typeOk = currentType === 'all' || currentType === tk
+          || (currentType === 'cert' && tk !== 'sys' && tk !== 'txn' && tk !== 'audit');
+        if (!typeOk) { r.style.display = 'none'; return; }
+        if (currentVerdict === 'fail' && m.nf === 0) { r.style.display = 'none'; return; }
+        if (currentVerdict === 'warn' && (m.nw === 0 || m.nf > 0)) { r.style.display = 'none'; return; }
+        if (textVal && !name.includes(textVal)) { r.style.display = 'none'; return; }
+        if (evtVal    && (r.dataset.evtType  || '').toLowerCase() !== evtVal)   { r.style.display = 'none'; return; }
+        if (opVal     && (r.dataset.opType   || '').toLowerCase() !== opVal)     { r.style.display = 'none'; return; }
+        if (clientVal && (r.dataset.clientId || '').toLowerCase() !== clientVal) { r.style.display = 'none'; return; }
+        if (txnVal    && !(r.dataset.txnNum  || '').toLowerCase().includes(txnVal)) { r.style.display = 'none'; return; }
+        r.style.display = ''; visible++;
+      });
+      typeRow.querySelectorAll('.ff-type-btn').forEach(btn => {
+        if (btn.dataset.typeKey === currentType) {
+          const orig  = typeFilters.find(f => f.key === currentType);
+          const total = orig?.count ?? visible;
+          btn.querySelector('.ff-count').textContent = visible < total ? `${visible}/${total}` : String(total);
+        }
+      });
+    };
+    typeRow.addEventListener('click', e => {
+      const btn = e.target.closest('.ff-type-btn');
+      if (!btn) return;
+      typeRow.querySelectorAll('.ff-type-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active'); currentType = btn.dataset.typeKey;
+      buildCondFilters(currentType);
+      condEl.querySelectorAll('select, input').forEach(el2 => el2.addEventListener('input', applyFilter));
+      applyFilter();
+    });
+    const verdictRowEl = filterBar.querySelector('.ff-verdict-row');
+    if (verdictRowEl) {
+      verdictRowEl.addEventListener('click', e => {
+        const btn = e.target.closest('.ff-verdict-btn'); if (!btn) return;
+        const key = btn.dataset.verdictKey || '';
+        currentVerdict = (currentVerdict === key) ? '' : key;
+        verdictRowEl.querySelectorAll('.ff-verdict-btn').forEach(b => b.classList.remove('active'));
+        if (currentVerdict) verdictRowEl.querySelector(`[data-verdict-key="${currentVerdict}"]`)?.classList.add('active');
+        const clearBtn = verdictRowEl.querySelector('.ff-vbtn-clear');
+        if (clearBtn) clearBtn.style.display = currentVerdict ? '' : 'none';
+        applyFilter();
+      });
+    }
+    filterBar.querySelector('#ff-text-search')?.addEventListener('input', applyFilter);
   }
 
   function renderCategory(container, catName, catResults, filterStatus, catIndex, runResult) {
@@ -384,24 +466,40 @@ window.UIRenderer = (function () {
     sidebarList.innerHTML = '';
     Object.entries(byCategory).forEach(([name, res]) => {
       const el = Utils.cloneTemplate('tpl-sidebar-cat');
-      const fails  = res.filter(r => r.status === 'FAIL').length;
-      const warns  = res.filter(r => r.status === 'WARN').length;
-      const passes = res.filter(r => r.status === 'PASS').length;
-      const verdict = fails > 0 ? 'fail' : warns > 0 ? 'warn' : passes > 0 ? 'pass' : 'info';
+      const nf = res.filter(r => r.status === 'FAIL').length;
+      const nw = res.filter(r => r.status === 'WARN').length;
+      const np = res.filter(r => r.status === 'PASS').length;
+      const ni = res.filter(r => r.status === 'INFO').length;
+      const ns = res.filter(r => r.status === 'SKIP').length;
+      const allSkip = ns === res.length && res.length > 0;
 
+      // Verdict determines border + background tint
+      const verdict = nf > 0 ? 'fail' : nw > 0 ? 'warn' : np > 0 ? 'pass' : allSkip ? 'skip' : 'info';
       el.dataset.cat = name;
       if (name === activeCat) el.classList.add('active');
       el.style.borderLeft = `3px solid var(--${verdict})`;
-      if (fails > 0) el.style.background = 'rgba(220,38,38,.05)';
-      else if (warns > 0) el.style.background = 'rgba(217,119,6,.05)';
+      if      (nf > 0)    el.style.background = 'rgba(220,38,38,.08)';
+      else if (nw > 0)    el.style.background = 'rgba(217,119,6,.08)';
+      else if (allSkip)   el.style.background = 'rgba(107,114,128,.06)';
+      else if (np > 0)    el.style.background = 'rgba(22,163,74,.04)';
 
       const nameEl  = el.querySelector('.sidebar-cat-name');
-      const countEl = el.querySelector('.sidebar-cat-count');
-      if (nameEl)  nameEl.textContent  = name;
-      if (countEl) {
-        countEl.textContent = fails > 0 ? `✗${fails}` : warns > 0 ? `⚠${warns}` : `✓${passes}`;
-        countEl.className = `sidebar-cat-count ${fails>0?'has-fail':warns>0?'has-warn':'all-pass'}`;
+      const miniEl  = el.querySelector('.sidebar-mini-counts');
+
+      if (nameEl) nameEl.textContent = name;
+
+      // Mini badges: show all non-zero counters
+      if (miniEl) {
+        const parts = [];
+        if (nf > 0) parts.push(`<span class="smc smc-f">✗ ${nf}</span>`);
+        if (nw > 0) parts.push(`<span class="smc smc-w">⚠ ${nw}</span>`);
+        if (np > 0) parts.push(`<span class="smc smc-p">✓ ${np}</span>`);
+        if (ni > 0) parts.push(`<span class="smc smc-i">ℹ ${ni}</span>`);
+        if (ns > 0) parts.push(`<span class="smc smc-s">– ${ns}</span>`);
+        // Only show mini badges if there's more than one type of status
+        miniEl.innerHTML = parts.join('');
       }
+
       sidebarList.appendChild(el);
     });
   }
@@ -784,5 +882,5 @@ window.UIRenderer = (function () {
     return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  return { renderWelcome, renderAnalyzing, renderOverview, renderCategory, renderSidebar, renderFileDetail, renderCertDetail };
+  return { renderWelcome, renderAnalyzing, renderOverview, renderAllFiles, renderAllTests, renderCategory, renderSidebar, renderFileDetail, renderCertDetail };
 })();

@@ -174,14 +174,25 @@ window.RuleRunner = (function() {
       }
     }
 
-    // Compute statistics
+    // Compute statistics (include perFileResults + perCertResults)
+    // Note: perFileResults use lowercase statuses; category results use uppercase
+    const allPerFile = [...Object.values(perFileResults), ...Object.values(perCertResults)].flat();
+    const allResults = [...results, ...allPerFile];
+    const st = s => (s || '').toUpperCase();
     const stats = {
-      total:  results.length,
-      pass:   results.filter(r => r.status === 'PASS').length,
-      fail:   results.filter(r => r.status === 'FAIL').length,
-      warn:   results.filter(r => r.status === 'WARN').length,
-      info:   results.filter(r => r.status === 'INFO').length,
-      skip:   results.filter(r => r.status === 'SKIP').length,
+      total:  allResults.length,
+      pass:   allResults.filter(r => st(r.status) === 'PASS').length,
+      fail:   allResults.filter(r => st(r.status) === 'FAIL').length,
+      warn:   allResults.filter(r => st(r.status) === 'WARN').length,
+      info:   allResults.filter(r => st(r.status) === 'INFO').length,
+      skip:   allResults.filter(r => st(r.status) === 'SKIP').length,
+      // Category-only sub-totals (for category pages)
+      catTotal: results.length,
+      catPass:  results.filter(r => r.status === 'PASS').length,
+      catFail:  results.filter(r => r.status === 'FAIL').length,
+      catWarn:  results.filter(r => r.status === 'WARN').length,
+      catInfo:  results.filter(r => r.status === 'INFO').length,
+      catSkip:  results.filter(r => r.status === 'SKIP').length,
       logCount:  parsedLogs.length,
       certCount: parsedCerts.length,
       parseErrors: parsedLogs.filter(l => l.parseError).length,

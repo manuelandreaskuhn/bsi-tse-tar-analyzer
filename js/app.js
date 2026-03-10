@@ -6,7 +6,7 @@ window.app = (function () {
   const S = {
     tarResult: null, archiveName: null, archiveType: 'export',
     runResult: null, activeCat: null, filterStatus: 'all',
-    activeFile: null, activeCert: null,
+    activeFile: null, activeCert: null, activeView: null, allTestsFilter: 'all',
   };
 
   const $content   = document.getElementById('content');
@@ -86,13 +86,18 @@ window.app = (function () {
 
   // ── Navigation ────────────────────────────────────────────────────────────
   function navigateTo(target) {
-    if (target === 'overview' && S.runResult) _showOverview();
+    if (!S.runResult) return;
+    if (target === 'overview') _showOverview();
+    else if (target === 'files') _showFiles();
+    else if (target === 'all-tests') _showAllTests('all');
+    else if (typeof target === 'string' && target.startsWith('cat:')) _showCategory(target.slice(4));
   }
 
   function _showOverview() {
-    S.activeCat = null; S.activeFile = null; S.activeCert = null;
+    S.activeCat = null; S.activeFile = null; S.activeCert = null; S.activeView = 'overview';
     UIRenderer.renderOverview($content, S.runResult, S.archiveName, S.archiveType);
     UIRenderer.renderSidebar($catList, S.runResult.byCategory, null);
+    _setNavActive('nav-overview');
 
     // Card clicks → category
     $content.onclick = e => {
@@ -108,13 +113,60 @@ window.app = (function () {
     };
   }
 
+  function _showFiles() {
+    S.activeCat = null; S.activeFile = null; S.activeCert = null; S.activeView = 'files';
+    UIRenderer.renderAllFiles($content, S.runResult);
+    UIRenderer.renderSidebar($catList, S.runResult.byCategory, null);
+    _setNavActive('nav-files');
+    $content.onclick = e => {
+      const fileRow = e.target.closest('[data-log-file]');
+      if (fileRow) { _showFileDetail(fileRow.dataset.logFile); return; }
+      const certRow = e.target.closest('[data-cert-file]');
+      if (certRow) { _showCertDetail(certRow.dataset.certFile); return; }
+    };
+  }
+
+  function _showAllTests(filter) {
+    S.activeCat = null; S.activeFile = null; S.activeCert = null;
+    S.activeView = 'all-tests'; S.allTestsFilter = filter || 'all';
+    UIRenderer.renderAllTests($content, S.runResult, S.allTestsFilter);
+    UIRenderer.renderSidebar($catList, S.runResult.byCategory, null);
+    _setNavActive('nav-all-tests');
+  }
+
+  function _setNavActive(id) {
+    ['nav-overview','nav-files','nav-all-tests'].forEach(nid => {
+      const el = document.getElementById(nid);
+      if (el) el.classList.toggle('active', nid === id);
+    });
+    // Update nav badges
+    const rr = S.runResult;
+    if (!rr) return;
+    const filesBadge = document.getElementById('nav-files-badge');
+    if (filesBadge) {
+      const allPfr = [...Object.values(rr.perFileResults||{}), ...Object.values(rr.perCertResults||{})].flat();
+      const nf = allPfr.filter(r=>(r.status||'').toUpperCase()==='FAIL').length;
+      const nw = allPfr.filter(r=>(r.status||'').toUpperCase()==='WARN').length;
+      filesBadge.className = 'snav-badge' + (nf?` has-fail`:nw?` has-warn`:` all-pass`);
+      filesBadge.textContent = nf ? `✗ ${nf}` : nw ? `⚠ ${nw}` : '✓';
+      filesBadge.style.display = '';
+    }
+    const testsBadge = document.getElementById('nav-all-tests-badge');
+    if (testsBadge) {
+      const nf = rr.stats.fail, nw = rr.stats.warn;
+      testsBadge.className = 'snav-badge' + (nf?` has-fail`:nw?` has-warn`:` all-pass`);
+      testsBadge.textContent = nf ? `✗ ${nf}` : nw ? `⚠ ${nw}` : '✓';
+      testsBadge.style.display = '';
+    }
+  }
+
   function _showCategory(catName) {
     const catResults = S.runResult?.byCategory[catName];
     if (!catResults) return;
-    S.activeCat = catName;
-    S.filterStatus = 'all';
+    S.activeCat = catName; S.filterStatus = 'all'; S.activeView = 'cat';
     UIRenderer.renderCategory($content, catName, catResults, 'all', _catIndex(catName), S.runResult);
     UIRenderer.renderSidebar($catList, S.runResult.byCategory, catName);
+    _setNavActive(null);
   }
 
   function _showFileDetail(filename) {
@@ -187,5 +239,10 @@ window.app = (function () {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  return { navigateTo, setFilter, toggleCheck, reset };
+  function setAllTestsFilter(filterValue, btn) {
+    S.allTestsFilter = filterValue;
+    _showAllTests(filterValue);
+  }
+
+  return { navigateTo, setFilter, setAllTestsFilter, toggleCheck, reset };
 })();
