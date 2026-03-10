@@ -370,6 +370,46 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 .ftype-other{ background: #f1f5f9; color: #64748b; }
 .tar-fsize { font-family: var(--mono); font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
 
+/* ─── FILE STATS BADGES ─── */
+.ftype-stat {
+  display: inline-flex; align-items: center; padding: 2px 9px;
+  border-radius: 10px; font-size: 11px; font-weight: 700; flex-shrink: 0;
+}
+
+/* ─── FILE FILTER BAR ─── */
+.file-filter-bar {
+  margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px;
+}
+.ff-type-row { display: flex; gap: 4px; flex-wrap: wrap; }
+.ff-type-btn {
+  padding: 4px 10px; border-radius: 16px; font-size: 11px; font-weight: 600;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text-secondary);
+  cursor: pointer; white-space: nowrap; transition: all .15s;
+}
+.ff-type-btn:hover  { background: var(--sidebar-bg); border-color: var(--border-strong); }
+.ff-type-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.ff-count { opacity: .75; margin-left: 3px; font-weight: 400; }
+.ff-search-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.ff-search {
+  flex: 1; min-width: 160px; padding: 5px 10px; border: 1px solid var(--border);
+  border-radius: 6px; font-size: 12px; background: var(--bg); color: var(--text);
+  outline: none;
+}
+.ff-search:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(37,99,235,.15); }
+.ff-cond-filters { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.ff-select {
+  padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 12px; background: var(--bg); color: var(--text); cursor: pointer;
+}
+.ff-select:focus { border-color: var(--accent); outline: none; }
+
+/* ─── FILE ROW V2 ─── */
+.tar-file-row-v2 {
+  border-left: 3px solid transparent; transition: background .1s, border-color .1s;
+  padding-left: 13px !important;
+}
+.tar-file-row-v2:hover { filter: brightness(.97); }
+
 /* ─── CERT/LOG FIELD GRID (file detail pages) ─── */
 .cert-fields-grid {
   display: grid; grid-template-columns: 1fr 1fr; gap: 10px;

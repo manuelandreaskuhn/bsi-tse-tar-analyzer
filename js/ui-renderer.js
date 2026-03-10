@@ -60,122 +60,284 @@ window.UIRenderer = (function () {
     _barW(el, 'bar-info', stats.info / t * 100);
     _barW(el, 'bar-skip', stats.skip / t * 100);
 
+    // Count log types
+    const sysLogs   = (parsedLogs||[]).filter(l => l.logType === 'sys');
+    const txnLogs   = (parsedLogs||[]).filter(l => l.logType === 'txn');
+    const auditLogs = (parsedLogs||[]).filter(l => l.logType === 'audit');
+    const certCount = (parsedCerts||[]).length;
+
     _fillMeta(el, '#meta-archive', [
       ['Dateiname', archiveName || '–'],
       ['Typ', archiveType === 'cert-export' ? 'CertificateExport' : 'Standard-Export'],
       ['Parse-Fehler', stats.parseErrors],
     ]);
     _fillMeta(el, '#meta-files', [
-      ['Log-Nachrichten', stats.logCount],
-      ['Zertifikate', stats.certCount],
+      ['Logs gesamt', (parsedLogs||[]).length],
+      ['SystemLog', sysLogs.length],
+      ['TransactionLog', txnLogs.length],
+      ['AuditLog', auditLogs.length],
+      ['Zertifikate', certCount],
     ]);
     _fillMeta(el, '#meta-params', [
       ['Kategorien', Object.keys(byCategory).length],
       ['Checks gesamt', stats.total],
     ]);
 
-    // TAR file list (now with per-file verdict badges)
-    if (tarResult) {
-      const files = [...tarResult.files.entries()]
-        .sort((a, b) => a[0].localeCompare(b[0]));
-      _setId(el, 'ov-tar-file-title', `Dateien im Archiv (${files.length})`);
-      _setId(el, 'ov-tar-file-count', String(files.length));
-      const listEl = el.querySelector('#ov-tar-file-list');
-      if (listEl) {
-        files.forEach(([name, entry]) => {
-          const ext = name.split('.').pop().toLowerCase();
-          const isLog  = ext === 'log';
-          const isCert = ['pem','cer','crt','cert','der'].includes(ext);
-          const isInfo = name.toLowerCase() === 'info.csv';
+    // ── Build the new files section ────────────────────────────────────────
+    const filesSec = el.querySelector('#ov-files-section');
+    if (filesSec && tarResult) {
+      const allFiles = [...tarResult.files.entries()].sort((a,b) => a[0].localeCompare(b[0]));
 
-          const row = document.createElement('div');
-          row.className = 'tar-file-row';
+      // Collect unique filter values from parsed logs
+      const evtTypes  = [...new Set(sysLogs.map(l => l.eventType).filter(Boolean))].sort();
+      const opTypes   = [...new Set(txnLogs.map(l => l.operationType).filter(Boolean))].sort();
+      const clientIds = [...new Set(txnLogs.map(l => l.clientId).filter(Boolean))].sort();
 
-          // Verdict badge from per-file results (keyed by basename)
-          const basename = name.split('/').pop();
-          let verdictBadge = '';
-          const _mkBadge = rs => {
-            const s = r => (r.status || '').toUpperCase();
-            const nf = rs.filter(r => s(r) === 'FAIL').length;
-            const nw = rs.filter(r => s(r) === 'WARN').length;
-            const np = rs.filter(r => s(r) === 'PASS').length;
-            if (nf > 0) return `<span class="sb-mini sb-mini-fail">✗ ${nf}</span>`;
-            if (nw > 0) return `<span class="sb-mini sb-mini-warn">⚠ ${nw}</span>`;
-            if (np > 0) return `<span class="sb-mini sb-mini-pass">✓</span>`;
-            return '';
-          };
-          let logTypeBadge = '';
-          if (isLog && perFileResults) {
-            const rs = perFileResults[basename] || perFileResults[name];
-            if (rs) {
-              verdictBadge = _mkBadge(rs);
-              row.dataset.logFile = name;
-              row.style.cursor = 'pointer';
-              row.title = 'Klicken für Datei-Details';
-            }
-            // Log type badge from parsedLogs
-            if (runResult && runResult.parsedLogs) {
-              const logEntry = runResult.parsedLogs.find(l => l._filename === basename);
-              if (logEntry) {
-                const lt = logEntry.logType || logEntry._filenameLogType || '';
-                const ltMap = {
-                  sys:   { label: 'SystemLog',      col: '#1e40af', bg: '#dbeafe' },
-                  txn:   { label: 'TransactionLog', col: '#6b21a8', bg: '#f3e8ff' },
-                  audit: { label: 'AuditLog',       col: '#92400e', bg: '#fef3c7' },
-                };
-                const ltInfo = ltMap[lt];
-                if (ltInfo) {
-                  logTypeBadge = `<span style="padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;color:${ltInfo.col};background:${ltInfo.bg};border:1px solid ${ltInfo.col}40;white-space:nowrap">${ltInfo.label}</span>`;
-                }
-              }
-            }
-          }
-          if (isCert && perCertResults) {
-            const rs = perCertResults[basename] || perCertResults[name];
-            if (rs) {
-              verdictBadge = _mkBadge(rs);
-              row.dataset.certFile = name;
-              row.style.cursor = 'pointer';
-              row.title = 'Klicken für Zertifikat-Details';
-            }
-          }
+      // Build per-file metadata for filtering
+      const fileMeta = allFiles.map(([name, entry]) => {
+        const ext     = name.split('.').pop().toLowerCase();
+        const isLog   = ext === 'log';
+        const isCert  = ['pem','cer','crt','cert','der'].includes(ext);
+        const basename= name.split('/').pop();
+        const logEntry= isLog  ? (parsedLogs||[]).find(l => l._filename === basename) : null;
+        const certEntry= isCert ? (parsedCerts||[]).find(c => c._filename === basename) : null;
+        const logType = logEntry?.logType || null; // 'sys'|'txn'|'audit'
+        const perFile = isLog  ? (perFileResults?.[basename] || perFileResults?.[name] || []) : null;
+        const perCert = isCert ? (perCertResults?.[basename] || perCertResults?.[name] || []) : null;
+        const rs      = perFile || perCert || [];
+        const nf      = rs.filter(r => (r.status||'').toUpperCase() === 'FAIL').length;
+        const nw      = rs.filter(r => (r.status||'').toUpperCase() === 'WARN').length;
+        const np      = rs.filter(r => (r.status||'').toUpperCase() === 'PASS').length;
+        return { name, entry, ext, isLog, isCert, basename, logEntry, certEntry, logType, rs, nf, nw, np };
+      });
 
-          const typeClass = `ftype-${['log','pem','cer','crt','cert','csv'].includes(ext) ? ext : 'other'}`;
-          // For cert files: compute and show cert type (Root/Sub-CA/Blatt)
-          let certTypeBadge = '';
-          if (isCert && runResult && runResult.parsedCerts) {
-            const certEntry = runResult.parsedCerts.find(c => {
-              const bn = (c._filename || c._path || '').split('/').pop();
-              return bn === name.split('/').pop();
-            });
-            if (certEntry && !certEntry.parseError && certEntry.isCA !== null) {
-              const iKey = JSON.stringify({ CN: certEntry.issuerDN?.CN, O: certEntry.issuerDN?.O });
-              const sKey = JSON.stringify({ CN: certEntry.subjectDN?.CN, O: certEntry.subjectDN?.O });
-              const ct = certEntry.isCA === true ? (iKey === sKey ? 'root' : 'subca') : 'leaf';
-              const ctColors = { root: '#7c3aed', subca: '#0369a1', leaf: '#059669' };
-              const ctBgs    = { root: '#f5f3ff', subca: '#e0f2fe', leaf: '#ecfdf5' };
-              const ctLabels = { root: 'Root-CA',  subca: 'Sub-CA',  leaf: 'Blatt' };
-              const col = ctColors[ct] || '#6b7280';
-              const bg  = ctBgs[ct]    || '#f9fafb';
-              certTypeBadge = `<span style="padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;color:${col};background:${bg};border:1px solid ${col}40;margin-left:4px">${ctLabels[ct]||ct}</span>`;
-            }
+      // ── Header ──────────────────────────────────────────────────────────
+      const hdr = document.createElement('div');
+      hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px';
+      hdr.innerHTML = `
+        <div style="font-size:13px;font-weight:700;color:var(--text)">📁 Dateien im Archiv
+          <span style="font-size:12px;font-weight:400;color:var(--text-muted);margin-left:6px">(${allFiles.length})</span>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          ${sysLogs.length   ? `<span class="ftype-stat" style="background:#dbeafe;color:#1e40af">${sysLogs.length} SystemLog</span>` : ''}
+          ${txnLogs.length   ? `<span class="ftype-stat" style="background:#f3e8ff;color:#6b21a8">${txnLogs.length} TransactionLog</span>` : ''}
+          ${auditLogs.length ? `<span class="ftype-stat" style="background:#fef3c7;color:#92400e">${auditLogs.length} AuditLog</span>` : ''}
+          ${certCount        ? `<span class="ftype-stat" style="background:#dcfce7;color:#166534">${certCount} Zertifikat${certCount!==1?'e':''}</span>` : ''}
+        </div>`;
+      filesSec.appendChild(hdr);
+
+      // ── Filter Bar ───────────────────────────────────────────────────────
+      const filterBar = document.createElement('div');
+      filterBar.className = 'file-filter-bar';
+
+      // Type filter buttons
+      const typeFilters = [
+        { key: 'all',   label: 'Alle', count: allFiles.length },
+        { key: 'sys',   label: 'SystemLog',      count: sysLogs.length,   show: sysLogs.length > 0 },
+        { key: 'txn',   label: 'TransactionLog', count: txnLogs.length,   show: txnLogs.length > 0 },
+        { key: 'audit', label: 'AuditLog',        count: auditLogs.length, show: auditLogs.length > 0 },
+        { key: 'cert',  label: 'Zertifikate',     count: certCount,        show: certCount > 0 },
+      ].filter(f => f.show !== false);
+
+      const typeRow = document.createElement('div');
+      typeRow.className = 'ff-type-row';
+      typeFilters.forEach(tf => {
+        const btn = document.createElement('button');
+        btn.className = 'ff-type-btn' + (tf.key === 'all' ? ' active' : '');
+        btn.dataset.typeKey = tf.key;
+        btn.innerHTML = `${_esc(tf.label)} <span class="ff-count">${tf.count}</span>`;
+        typeRow.appendChild(btn);
+      });
+      filterBar.appendChild(typeRow);
+
+      // Search row
+      const searchRow = document.createElement('div');
+      searchRow.className = 'ff-search-row';
+      searchRow.innerHTML = `
+        <input class="ff-search" id="ff-text-search" type="text" placeholder="Dateiname / Inhalt suchen…">
+        <div class="ff-cond-filters" id="ff-cond-filters" style="display:none"></div>`;
+      filterBar.appendChild(searchRow);
+      filesSec.appendChild(filterBar);
+
+      // Conditional filters (EventType / OpType comboboxes)
+      const condEl = filterBar.querySelector('#ff-cond-filters');
+      const buildCondFilters = typeKey => {
+        condEl.innerHTML = '';
+        condEl.style.display = 'none';
+        if (typeKey === 'sys' && evtTypes.length > 0) {
+          condEl.style.display = 'flex';
+          const sel = document.createElement('select');
+          sel.className = 'ff-select';
+          sel.id = 'ff-evttype';
+          sel.innerHTML = `<option value="">Alle eventTypes (${evtTypes.length})</option>` +
+            evtTypes.map(e => `<option value="${_esc(e)}">${_esc(e)}</option>`).join('');
+          condEl.appendChild(sel);
+        } else if (typeKey === 'txn') {
+          condEl.style.display = 'flex';
+          if (opTypes.length > 0) {
+            const sel = document.createElement('select');
+            sel.className = 'ff-select';
+            sel.id = 'ff-optype';
+            sel.innerHTML = `<option value="">Alle Operationen</option>` +
+              opTypes.map(o => `<option value="${_esc(o)}">${_esc(o)}</option>`).join('');
+            condEl.appendChild(sel);
           }
-          row.innerHTML =
-            `<span class="tar-fname">${_esc(name)}</span>` +
-            `<span class="tar-ftype ${typeClass}">${_esc(ext)}</span>` +
-            logTypeBadge +
-            certTypeBadge +
-            verdictBadge +
-            `<span class="tar-fsize">${_formatBytes(entry.size)}</span>`;
-          listEl.appendChild(row);
+          if (clientIds.length > 0) {
+            const sel2 = document.createElement('select');
+            sel2.className = 'ff-select';
+            sel2.id = 'ff-client';
+            sel2.innerHTML = `<option value="">Alle Clients (${clientIds.length})</option>` +
+              clientIds.map(c => `<option value="${_esc(c)}">Client: ${_esc(c)}</option>`).join('');
+            condEl.appendChild(sel2);
+          }
+          const txnInput = document.createElement('input');
+          txnInput.className = 'ff-search ff-txn-search';
+          txnInput.id = 'ff-txnnum';
+          txnInput.type = 'text';
+          txnInput.placeholder = 'Txn-Nr. filtern…';
+          txnInput.style.width = '120px';
+          condEl.appendChild(txnInput);
+        }
+      };
+
+      // ── File List ────────────────────────────────────────────────────────
+      const listWrap = document.createElement('div');
+      listWrap.className = 'card';
+      listWrap.style.overflow = 'hidden';
+      const list = document.createElement('div');
+      list.className = 'tar-file-list';
+      list.id = 'ov-tar-file-list';
+      listWrap.appendChild(list);
+      filesSec.appendChild(listWrap);
+
+      // Build all rows
+      const rows = fileMeta.map(m => {
+        const row = document.createElement('div');
+        row.className = 'tar-file-row tar-file-row-v2';
+        row.dataset.typeKey    = m.logType || (m.isCert ? 'cert' : 'other');
+        row.dataset.nameSearch = m.name.toLowerCase();
+
+        // Coloring by verdict
+        if (m.nf > 0) { row.style.borderLeft = '3px solid var(--fail)'; row.style.background = 'rgba(220,38,38,.04)'; }
+        else if (m.nw > 0) { row.style.borderLeft = '3px solid var(--warn)'; row.style.background = 'rgba(217,119,6,.04)'; }
+        else if (m.np > 0) { row.style.borderLeft = '3px solid var(--pass)'; }
+
+        // Dataset for clicks
+        if (m.isLog && m.logEntry)  { row.dataset.logFile = m.name;  row.style.cursor = 'pointer'; row.title = 'Klicken für Datei-Details'; }
+        if (m.isCert && m.certEntry){ row.dataset.certFile = m.name; row.style.cursor = 'pointer'; row.title = 'Klicken für Zertifikat-Details'; }
+
+        // Content-based search attributes for smart filtering
+        if (m.logEntry) {
+          if (m.logEntry.eventType)       row.dataset.evtType  = m.logEntry.eventType;
+          if (m.logEntry.operationType)   row.dataset.opType   = m.logEntry.operationType;
+          if (m.logEntry.clientId)        row.dataset.clientId = String(m.logEntry.clientId);
+          if (m.logEntry.transactionNumber != null) row.dataset.txnNum = String(m.logEntry.transactionNumber);
+        }
+
+        // Badges
+        const ltMap = {
+          sys:   { label:'SystemLog',      col:'#1e40af', bg:'#dbeafe' },
+          txn:   { label:'TransactionLog', col:'#6b21a8', bg:'#f3e8ff' },
+          audit: { label:'AuditLog',       col:'#92400e', bg:'#fef3c7' },
+        };
+        const badge = (col, bg, txt) => `<span style="padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;color:${col};background:${bg};border:1px solid ${col}40;white-space:nowrap;flex-shrink:0">${txt}</span>`;
+
+        let logTypeBadge = '';
+        if (m.logType && ltMap[m.logType]) {
+          const { label, col, bg } = ltMap[m.logType];
+          logTypeBadge = badge(col, bg, label);
+          // Sub-label for txn
+          if (m.logType === 'txn' && m.logEntry?.operationType) {
+            const opShort = {startTransaction:'Start', updateTransaction:'Update', finishTransaction:'Finish'}[m.logEntry.operationType] || m.logEntry.operationType;
+            logTypeBadge += badge('#374151','#f3f4f6', opShort);
+          }
+        }
+
+        let certTypeBadge = '';
+        if (m.isCert && m.certEntry && !m.certEntry.parseError) {
+          const iKey = JSON.stringify({ CN: m.certEntry.issuerDN?.CN, O: m.certEntry.issuerDN?.O });
+          const sKey = JSON.stringify({ CN: m.certEntry.subjectDN?.CN, O: m.certEntry.subjectDN?.O });
+          const ct = m.certEntry.isCA === true ? (iKey === sKey ? 'root' : 'subca') : 'leaf';
+          const ctM = { root:{col:'#7c3aed',bg:'#f5f3ff',lbl:'Root-CA'}, subca:{col:'#0369a1',bg:'#e0f2fe',lbl:'Sub-CA'}, leaf:{col:'#059669',bg:'#ecfdf5',lbl:'Blatt'} }[ct];
+          if (ctM) certTypeBadge = badge(ctM.col, ctM.bg, ctM.lbl);
+        }
+
+        const verdictBadge = m.rs.length > 0
+          ? (m.nf > 0 ? `<span class="sb-mini sb-mini-fail">✗ ${m.nf}</span>`
+            : m.nw > 0 ? `<span class="sb-mini sb-mini-warn">⚠ ${m.nw}</span>`
+            : m.np > 0 ? `<span class="sb-mini sb-mini-pass">✓</span>` : '') : '';
+
+        const typeClass = `ftype-${['log','pem','cer','crt','cert','csv'].includes(m.ext) ? m.ext : 'other'}`;
+        row.innerHTML =
+          `<span class="tar-fname">${_esc(m.name)}</span>` +
+          `<span class="tar-ftype ${typeClass}" style="flex-shrink:0">${_esc(m.ext)}</span>` +
+          logTypeBadge + certTypeBadge + verdictBadge +
+          `<span class="tar-fsize">${_formatBytes(m.entry.size)}</span>`;
+
+        return row;
+      });
+
+      rows.forEach(r => list.appendChild(r));
+
+      // ── Filter logic ────────────────────────────────────────────────────
+      let currentType = 'all';
+
+      const applyFilter = () => {
+        const textVal    = (filterBar.querySelector('#ff-text-search')?.value || '').toLowerCase();
+        const evtVal     = (filterBar.querySelector('#ff-evttype')?.value  || '').toLowerCase();
+        const opVal      = (filterBar.querySelector('#ff-optype')?.value   || '').toLowerCase();
+        const clientVal  = (filterBar.querySelector('#ff-client')?.value   || '').toLowerCase();
+        const txnVal     = (filterBar.querySelector('#ff-txnnum')?.value   || '').toLowerCase();
+
+        rows.forEach(r => {
+          const tk   = r.dataset.typeKey   || 'other';
+          const name = r.dataset.nameSearch || '';
+
+          // Type filter
+          const typeOk = currentType === 'all'
+            || currentType === tk
+            || (currentType === 'cert' && tk !== 'sys' && tk !== 'txn' && tk !== 'audit');
+
+          if (!typeOk) { r.style.display = 'none'; return; }
+
+          // Text search
+          if (textVal && !name.includes(textVal)) { r.style.display = 'none'; return; }
+
+          // Cond filters
+          if (evtVal   && (r.dataset.evtType  || '').toLowerCase() !== evtVal)  { r.style.display = 'none'; return; }
+          if (opVal    && (r.dataset.opType   || '').toLowerCase() !== opVal)    { r.style.display = 'none'; return; }
+          if (clientVal&& (r.dataset.clientId || '').toLowerCase() !== clientVal){ r.style.display = 'none'; return; }
+          if (txnVal   && !(r.dataset.txnNum  || '').toLowerCase().includes(txnVal)){ r.style.display = 'none'; return; }
+
+          r.style.display = '';
         });
-      }
-    }
 
-    // Category grid
-    const grid = el.querySelector('#ov-cat-grid');
-    if (grid) {
-      Object.entries(byCategory).forEach(([name, res]) => grid.appendChild(_buildCatCard(name, res)));
+        // Update visible count on active button
+        typeRow.querySelectorAll('.ff-type-btn').forEach(btn => {
+          if (btn.dataset.typeKey === currentType) {
+            const visible = rows.filter(r => r.style.display !== 'none').length;
+            const orig    = typeFilters.find(f => f.key === currentType);
+            const total   = orig?.count ?? visible;
+            btn.querySelector('.ff-count').textContent = visible < total ? `${visible}/${total}` : String(total);
+          }
+        });
+      };
+
+      // Type button clicks
+      typeRow.addEventListener('click', e => {
+        const btn = e.target.closest('.ff-type-btn');
+        if (!btn) return;
+        typeRow.querySelectorAll('.ff-type-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentType = btn.dataset.typeKey;
+        buildCondFilters(currentType);
+        // Re-attach listeners after rebuilding cond filters
+        condEl.querySelectorAll('select, input').forEach(el2 => el2.addEventListener('input', applyFilter));
+        applyFilter();
+      });
+
+      // Text search
+      filterBar.querySelector('#ff-text-search')?.addEventListener('input', applyFilter);
     }
 
     container.appendChild(el);
@@ -254,11 +416,12 @@ window.UIRenderer = (function () {
     const warns = checkResults.filter(r => r.status === 'WARN').length;
     const passes= checkResults.filter(r => r.status === 'PASS').length;
 
-    const logTypeColor = { TransactionLog:'#7c3aed', SystemLog:'#0369a1', AuditLog:'#c2410c' };
-    const logTypeBg    = { TransactionLog:'#ede9fe', SystemLog:'#e0f2fe', AuditLog:'#fff7ed' };
-    const lt = f.logType || 'Unbekannt';
-    const ltColor = logTypeColor[lt] || '#6b7280';
-    const ltBg    = logTypeBg[lt]    || '#f1f5f9';
+    const logTypeColor = { txn:'#7c3aed', sys:'#0369a1', audit:'#c2410c', TransactionLog:'#7c3aed', SystemLog:'#0369a1', AuditLog:'#c2410c' };
+    const logTypeBg    = { txn:'#ede9fe',  sys:'#e0f2fe',  audit:'#fff7ed',  TransactionLog:'#ede9fe',  SystemLog:'#e0f2fe',  AuditLog:'#fff7ed' };
+    const logTypeLabel = { sys:'SystemLog', txn:'TransactionLog', audit:'AuditLog' };
+    const lt      = logTypeLabel[f.logType] || f.logTypeLabel || f.logType || 'Unbekannt';
+    const ltColor = logTypeColor[f.logType] || logTypeColor[lt] || '#6b7280';
+    const ltBg    = logTypeBg[f.logType]    || logTypeBg[lt]    || '#f1f5f9';
 
     const verdict = fails > 0 ? 'fail' : warns > 0 ? 'warn' : 'pass';
     const verdictColor = {fail:'var(--fail)',warn:'var(--warn)',pass:'var(--pass)'}[verdict];
@@ -296,20 +459,27 @@ window.UIRenderer = (function () {
             ${_kv('Log-Typ', `<span style="color:${ltColor};font-weight:600">${_esc(lt)}</span>`)}
             ${_kv('version', f.version != null ? `${f.version}${f.version===3?' <span style="color:var(--pass)">✓</span>':' <span style="color:var(--fail)">✗</span>'}` : '–')}
             ${_kv('certifiedDataType OID', `<code>${_esc(f.certifiedDataType || f.oid || '–')}</code>`)}
-            ${_kv('signatureAlgorithm', _esc(f.sigAlgName || f.signatureAlgorithm || '–'))}
+            ${_kv('signatureAlgorithm', `<code>${_esc(f.sigAlgName || '–')}</code>${f.sigAlgOID ? ` <span style="font-size:10px;color:var(--text-muted)">${_esc(f.sigAlgOID)}</span>` : ''}`)}
             ${_kv('signatureCounter', f.signatureCounter != null ? `<code>${f.signatureCounter}</code>` : '–')}
             ${_kv('signatureCreationTime', f.signatureCreationTime != null ? `<code>${fmtUnix(f.signatureCreationTime)}</code>` : '–')}
             ${_kv('serialNumber', f.serialNumber ? `<code style="font-size:10px;word-break:break-all">${f.serialNumber.slice(0,64)}${f.serialNumber.length>64?'…':''}</code>` : '–')}
             ${_kv('signatureValue', f.signatureValueLen != null ? `<code>${f.signatureValueLen} Byte (${(f.signatureValueHex||'').slice(0,16)}…)</code>` : '–')}
             ${f.eventType   != null ? _kv('eventType',   `<code>${_esc(f.eventType)}</code>`) : ''}
             ${f.eventOrigin != null ? _kv('eventOrigin', `<code>${_esc(f.eventOrigin)}</code>`) : ''}
-            ${f.eventTriggeredByUser != null ? _kv('eventTriggeredByUser', `<code>${f.eventTriggeredByUser}</code>`) : ''}
+            ${f.eventTriggeredByUser != null ? _kv('eventTriggeredByUser', `<code>${_esc(f.eventTriggeredByUser)}</code>`) : ''}
+            ${f.eventDataLen != null ? _kv('eventData',
+              f.eventDataLen === 0
+                ? '<span style="color:var(--text-muted)">leer (0 Byte) – leere SEQUENCE ✓</span>'
+                : `<code>${f.eventDataLen} Byte${f.eventDataDecoded ? ' · ' + _esc(f.eventDataDecoded.slice(0,120)) : ''}</code>`)
+              : (lt === 'SystemLog' ? _kv('eventData', '<span style="color:var(--fail)">✗ fehlt (Pflichtfeld)</span>') : '')}
             ${f.operationType != null ? _kv('operationType', `<code style="color:var(--accent)">${_esc(f.operationType)}</code>`) : ''}
             ${f.transactionNumber != null ? _kv('transactionNumber', `<code>Nr. ${f.transactionNumber}</code>`) : ''}
             ${f.clientId != null ? _kv('clientId', `<code>${_esc(String(f.clientId))}</code>`) : ''}
             ${f.processType != null ? _kv('processType', _esc(f.processType)) : ''}
             ${f.processDataLen != null ? _kv('processData', `<code style="font-size:10px">${f.processDataLen} Byte${f.processDataText ? ' · ' + _esc(f.processDataText.slice(0,80)) : ''}</code>`) : ''}
-            ${f.seAuditDataLen != null ? _kv('seAuditData', `<code style="font-size:10px">${f.seAuditDataLen} Byte${f.seAuditDataDecoded ? '<br>' + _esc(f.seAuditDataDecoded.slice(0,200)) : ''}</code>`) : ''}
+            ${f.additionalExternalDataPresent ? _kv('additionalExternalData',
+              `<code style="font-size:10px">${f.additionalExternalDataLen} Byte${f.additionalExternalDataText ? ' · ' + _esc(f.additionalExternalDataText.slice(0,80)) : ''}</code>`) : ''}
+            ${f.seAuditDataLen != null ? _kv('seAuditData', `<code style="font-size:10px">${f.seAuditDataLen} Byte${f.seAuditDataDecoded ? '<br>' + _esc(f.seAuditDataDecoded.slice(0,200)) : ''}${f.seAuditDataHex ? '<br><span style="color:var(--text-muted)">' + _esc(f.seAuditDataHex.slice(0,48)) + '…</span>' : ''}</code>`) : ''}
           </div>
         </div>
       `}

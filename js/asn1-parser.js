@@ -182,6 +182,18 @@ const ASN1 = (() => {
             result.signatureAlgorithm = oid;
           }
         }
+        else if (tag === 0x30) { // SEQUENCE – AlgorithmIdentifier { OID, params }
+          try {
+            const algKids = parseChildren(f.value, 0, f.value.length);
+            if (algKids.length >= 1 && algKids[0].tag === 0x06) {
+              const algOid = readOID(algKids[0].value);
+              // Only assign signatureAlgorithm if certifiedDataType already set (position check)
+              if (result.certifiedDataType !== null && result.signatureAlgorithm === null) {
+                result.signatureAlgorithm = algOid;
+              }
+            }
+          } catch(e2) { /* ignore */ }
+        }
         else if (tag === 0x04) { // OCTET STRING – serialNumber or signatureValue
           if (result.serialNumber === null) result.serialNumber = f.value;
           else if (result.signatureValue === null) result.signatureValue = f.value;
@@ -201,9 +213,11 @@ const ASN1 = (() => {
             result.processData = f.value;
           }
         }
-        else if (tag === 0xa3 || tag === 0x83) { // [3] – processType
+        else if (tag === 0xa3 || tag === 0x83) { // [3] – processType (TXN) or eventData (SYS)
           if (result.logType === 'txn' && result.processType === null)
             result.processType = readPrintable(f.value);
+          else if (result.logType === 'sys' && result.eventData === null)
+            result.eventData = f.value; // [3] EXPLICIT = eventData for SystemLogMessage
         }
         else if (tag === 0xa4 || tag === 0x84) { // [4] – additionalExternalData / eventData
           if (result.logType === 'txn') {
@@ -373,11 +387,15 @@ const ASN1 = (() => {
       r.eventDataLen     = r.eventData.length;
       r.eventDataDecoded = _tryDecode(r.eventData);
 
-      // Parse eventData children (SEQUENCE wrapper)
-      if (r.eventData.length > 2 && r.eventData[0] === 0x30) {
+      // Parse eventData children (with or without SEQUENCE wrapper)
+      if (r.eventData.length > 1) {
         try {
-          const hdrLen = 1 + (r.eventData[1] < 0x80 ? 1 : (r.eventData[1] & 0x7f) + 1);
-          const kids = parseChildren(r.eventData, hdrLen, r.eventData.length);
+          let parseStart = 0, parseEnd = r.eventData.length;
+          if (r.eventData[0] === 0x30) {
+            const hdrLen = 1 + (r.eventData[1] < 0x80 ? 1 : (r.eventData[1] & 0x7f) + 1);
+            parseStart = hdrLen;
+          }
+          const kids = parseChildren(r.eventData, parseStart, parseEnd);
 
           // Check for time value (updateTime: seTimeAfterUpdate)
           r.eventDataHasTimeValue = kids.some(k => k.tag === 0x18 || k.tag === 0x17 ||

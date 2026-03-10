@@ -145,7 +145,7 @@ window.FileChecker = (function() {
       'BSI TR-03153-1 §7.1 / BSI TR-03116-5');
 
     // LOG_FNAME_CTR
-    const fnSig = bn.match(/Sig-(\\d+)/i);
+    const fnSig = bn.match(/Sig-(\d+)/i);
     if (fnSig && f.signatureCounter != null) {
       const fnCtr = parseInt(fnSig[1], 10);
       p('LOG_FNAME_CTR', 'Dateiname: Sig-{counter} stimmt',
@@ -169,7 +169,7 @@ window.FileChecker = (function() {
     }
 
     // ── SystemLog ──────────────────────────────────────────────────────────
-    if (f.logType === 'SystemLog') {
+    if (f.logType === 'sys' || f.logType === 'SystemLog') {
       const rule         = SYSLOG_RULES[f.eventType] || null;
       const isSelfTest   = f.eventType === 'selfTest';
 
@@ -192,7 +192,7 @@ window.FileChecker = (function() {
         'BSI TR-03151-1 SystemLogMessage §3, BSI TR-03153-1 §9.7');
 
       // LOG_FNAME_EVT
-      const fnEvt = bn.match(/Log-Sys_([^.]+)\\.log$/i);
+      const fnEvt = bn.match(/Log-Sys_([^.]+)\.log$/i);
       if (fnEvt && f.eventType) {
         const evtMatch = fnEvt[1].toLowerCase() === f.eventType.toLowerCase();
         p('LOG_FNAME_EVT', 'Dateiname: Log-Sys_{eventType}.log',
@@ -447,7 +447,7 @@ window.FileChecker = (function() {
         'BSI TR-03151-1 SystemLogMessage §7 – RFU');
 
       // Dateiname-Schema SystemLog
-      const RS = /^[^_]+_[^_]+_Sig-\\d+_Log-Sys_[^.]+\\.log$/i;
+      const RS = /^[^_]+_[^_]+_Sig-\d+_Log-Sys_[^.]+\.log$/i;
       p('LOG_SYS_FNAME', 'Dateiname-Schema System-Log (*_Log-Sys_{eventType}.log)',
         RS.test(bn) ? 'pass' : 'warn',
         RS.test(bn) ? bn + ' ✓' : '⚠ "' + bn + '" entspricht nicht dem Schema',
@@ -455,7 +455,7 @@ window.FileChecker = (function() {
     }
 
     // ── TransactionLog ─────────────────────────────────────────────────────
-    if (f.logType === 'TransactionLog') {
+    if (f.logType === 'txn' || f.logType === 'TransactionLog') {
       const VALID_OPS = ['startTransaction','updateTransaction','finishTransaction'];
       const OP_TYPE_MAP_FN = { startTransaction:'Start', updateTransaction:'Update', finishTransaction:'Finish' };
 
@@ -504,7 +504,7 @@ window.FileChecker = (function() {
         'BSI TR-03151-1 TransactionLogMessage §8 / BSI TR-03153-1 §9.2');
 
       // Dateiname: vollständig korrekt
-      const RT_FULL = /^(Gent|Utc|Unixt)_[^_]+_Sig-\\d+_Log-Tra_No-\\d+_(Start|Update|Finish)_Client-[^_]+(_Fc-\\d+)?\\.log$/;
+      const RT_FULL = /^(Gent|Utc|Unixt)_[^_]+_Sig-\d+_Log-Tra_No-\d+_(Start|Update|Finish)_Client-[^_]+(_Fc-\d+)?\.log$/;
       p('LOG_TXN_FNAME', 'Dateiname-Schema vollständig korrekt',
         RT_FULL.test(bn) ? 'pass' : 'warn',
         RT_FULL.test(bn)
@@ -522,7 +522,7 @@ window.FileChecker = (function() {
         'BSI TR-03151-1 Dateinamenkonvention');
 
       // No-{transactionNumber}
-      const fnTxn = bn.match(/Log-Tra_No-(\\d+)/i);
+      const fnTxn = bn.match(/Log-Tra_No-(\d+)/i);
       if (fnTxn && f.transactionNumber != null) {
         const fnNum = parseInt(fnTxn[1], 10);
         p('LOG_TXN_FNAME_NUM', 'Dateiname: No-{transactionNumber} stimmt',
@@ -534,7 +534,7 @@ window.FileChecker = (function() {
       }
 
       // {TYPE}: Start|Update|Finish
-      const fnType = bn.match(/Log-Tra_No-\\d+_(Start|Update|Finish)_Client-/i);
+      const fnType = bn.match(/Log-Tra_No-\d+_(Start|Update|Finish)_Client-/i);
       if (f.operationType) {
         const expectedType = OP_TYPE_MAP_FN[f.operationType] || f.operationType;
         if (fnType) {
@@ -552,7 +552,7 @@ window.FileChecker = (function() {
       }
 
       // Client-{clientId}
-      const fnClient = bn.match(/_(Start|Update|Finish)_Client-([^_]+?)(?:_Fc-\\d+)?\\.log$/i);
+      const fnClient = bn.match(/_(Start|Update|Finish)_Client-([^_]+?)(?:_Fc-\d+)?\.log$/i);
       if (f.clientId && fnClient) {
         p('LOG_TXN_FNAME_CLIENT', 'Dateiname: Client-{clientId} stimmt',
           fnClient[2] === f.clientId ? 'pass' : 'warn',
@@ -563,7 +563,7 @@ window.FileChecker = (function() {
       }
 
       // Fc-{n}: optionaler Kollisionszähler
-      const fnFc = bn.match(/_Fc-(\\d+)\\.log$/i);
+      const fnFc = bn.match(/_Fc-(\d+)\.log$/i);
       if (fnFc) {
         p('LOG_TXN_FNAME_FC', 'Dateiname: Fc-{n} Kollisionszähler (optional)', 'info',
           'Fc-' + fnFc[1] + ' – Dateinamenkollision wird vermieden',
@@ -618,7 +618,7 @@ window.FileChecker = (function() {
     }
 
     // ── AuditLog ───────────────────────────────────────────────────────────
-    if (f.logType === 'AuditLog') {
+    if (f.logType === 'audit' || f.logType === 'AuditLog') {
       p('LOG_AUDIT_DATA', 'seAuditData vorhanden (OCTET STRING)',
         f.seAuditDataLen != null ? 'pass' : 'fail',
         f.seAuditDataLen != null
@@ -641,7 +641,7 @@ window.FileChecker = (function() {
           : '⚠ Unerwartete Felder: eventType="' + f.eventType + '", eventOrigin="' + f.eventOrigin + '"',
         'BSI TR-03151-1 AuditLogMessage vs. SystemLogMessage');
 
-      const RA = /^[^_]+_[^_]+_Sig-\\d+_Log-Aud\\.log$/i;
+      const RA = /^[^_]+_[^_]+_Sig-\d+_Log-Aud\.log$/i;
       p('LOG_AUDIT_FNAME', 'Dateiname-Schema Audit-Log (*_Log-Aud.log)',
         RA.test(bn) ? 'pass' : 'warn',
         RA.test(bn) ? bn + ' ✓' : '⚠ "' + bn + '" entspricht nicht dem Schema',

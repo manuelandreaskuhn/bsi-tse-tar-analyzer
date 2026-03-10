@@ -108,7 +108,7 @@ window.RuleRunner = (function() {
         if (k.toLowerCase() === 'info.csv') {
           try {
             const rawText = new TextDecoder('utf-8').decode(entry.data);
-            infoRows = FileChecker.parseInfoCsv(rawText);
+            infoRows = (window.FileChecker || FileChecker).parseInfoCsv(rawText);
           } catch(e) {
             infoRows = null;
           }
@@ -157,7 +157,7 @@ window.RuleRunner = (function() {
     for (const log of parsedLogs) {
       const fn = log._filename;
       try {
-        perFileResults[fn] = FileChecker.checkSingleLog(log, parsedCerts);
+        perFileResults[fn] = (window.FileChecker || FileChecker).checkSingleLog(log, parsedCerts);
       } catch(e) {
         perFileResults[fn] = [{ id:'ERR', name:'Fehler', cat:'LOG_FILE', status:'WARN', detail: String(e), ruleText:'', ref:'' }];
       }
@@ -168,7 +168,7 @@ window.RuleRunner = (function() {
     for (const cert of parsedCerts) {
       const fn = cert._filename;
       try {
-        perCertResults[fn] = FileChecker.checkSingleCert(cert, parsedCerts);
+        perCertResults[fn] = (window.FileChecker || FileChecker).checkSingleCert(cert, parsedCerts);
       } catch(e) {
         perCertResults[fn] = [{ id:'ERR', name:'Fehler', cat:'CERT_FILE', status:'WARN', detail: String(e), ruleText:'', ref:'' }];
       }
