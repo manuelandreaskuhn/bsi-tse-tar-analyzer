@@ -165,9 +165,10 @@ const ASN1 = (() => {
       for (const f of fields) {
         const tag = f.tag;
 
-        if (tag === 0x02) { // INTEGER – version
+        if (tag === 0x02) { // INTEGER – version / signatureCounter / signatureCreationTime
           if (result.version === null) result.version = readInteger(f.value);
           else if (result.signatureCounter === null) result.signatureCounter = readInteger(f.value);
+          else if (result.signatureCreationTime === null) result.signatureCreationTime = readInteger(f.value);
         }
         else if (tag === 0x06) { // OID
           const oid = readOID(f.value);
@@ -306,9 +307,10 @@ const ASN1 = (() => {
     r.sigAlgName = _LOG_SIG_NAMES[r.signatureAlgorithm] || r.signatureAlgorithm || '–';
 
     // logType as human-readable string
-    if (r.logType === 'txn')   r.logType = 'TransactionLog';
-    else if (r.logType === 'sys')   r.logType = 'SystemLog';
-    else if (r.logType === 'audit') r.logType = 'AuditLog';
+    // Keep logType as short key ('sys'/'txn'/'audit') for rule filter compatibility
+    // Add human-readable label separately
+    const _LOG_TYPE_LABELS = { sys: 'SystemLog', txn: 'TransactionLog', audit: 'AuditLog' };
+    r.logTypeLabel = _LOG_TYPE_LABELS[r.logType] || r.logType || 'unknown';
 
     // serialNumber as hex string
     if (r.serialNumber instanceof Uint8Array) {
@@ -608,6 +610,7 @@ const ASN1 = (() => {
       // subject Name
       if (tbsKids[i] && tbsKids[i].tag === 0x30) {
         cert.subjectDN = decodeDN(der, tbsKids[i].valueStart, tbsKids[i].valueEnd);
+        cert.subjectCN = cert.subjectDN['CN'] || null;
         i++;
       }
 

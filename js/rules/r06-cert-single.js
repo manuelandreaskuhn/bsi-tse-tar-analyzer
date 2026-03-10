@@ -5,7 +5,14 @@ window.RulesCat06 = (function() {
   const CAT = 'Zertifikat-Einzelprüfungen (CERT)';
 
   const VALID_SIG_ALGS = ['1.2.840.10045.4.3.2', '1.2.840.10045.4.3.3']; // SHA256, SHA384
-  const VALID_CURVES   = ['1.3.132.0.34', '1.2.840.10045.3.1.7']; // P-384, P-256
+  const VALID_CURVES   = [
+    '1.3.132.0.34',              // secp384r1 (P-384)   – BSI-bevorzugt
+    '1.2.840.10045.3.1.7',       // secp256r1 (P-256)
+    '1.3.36.3.3.2.8.1.1.11',    // brainpoolP384r1      – BSI-bevorzugt
+    '1.3.36.3.3.2.8.1.1.7',     // brainpoolP256r1
+    '1.3.36.3.3.2.8.1.1.13',    // brainpoolP512r1
+    '1.3.132.0.35',              // secp521r1 (P-521)
+  ];
   const BSI_TSE_OID_PFX = '0.4.0.127.0.7.3.7.2.';
 
   // KeyUsage bits (ASN.1 BIT STRING, bit 0 = MSB of first byte)
@@ -104,10 +111,10 @@ window.RulesCat06 = (function() {
       if (c.akiValue) akiPresent.push(`${name}: ${c.akiValue}`);
 
       // CERT_CRL
-      if (c.crlDP) crlPresent.push(name);
+      if (c.crlDistPoints && c.crlDistPoints.length > 0) crlPresent.push(`${name}: ${c.crlDistPoints[0]}`);
 
       // CERT_POLICY
-      if (c.certPolicy) policyPresent.push(name);
+      if (c.certPolicies && c.certPolicies.length > 0) policyPresent.push(`${name}: ${c.certPolicies[0]}`);
     }
 
     const n = parsedCerts.filter(c => !c.parseError).length;
@@ -137,12 +144,35 @@ window.RulesCat06 = (function() {
       'Zertifikat muss aktuell gültig sein (notBefore ≤ jetzt ≤ notAfter).',
       'BSI TR-03116-5', n, 'warn');
 
-    // CERT_PKUP
-    results.push(Utils.info('CERT_PKUP', 'Private Key Usage Period', CAT,
-      'Private Key Usage Period kann nur durch vollständige DER-Extension-Auswertung geprüft werden. ' +
-      `${parsedCerts.length} Zertifikat(e) analysiert.`,
-      'Das Zertifikat sollte eine Private Key Usage Period Extension enthalten.',
-      'BSI TR-03116-5'));
+    // CERT_PKUP – based on cert.pkupNotBefore / pkupNotAfter parsed from extension 2.5.29.16
+    {
+      const withPkup  = parsedCerts.filter(c => !c.parseError && (c.pkupNotBefore || c.pkupNotAfter));
+      const fmtD = d => d ? d.toISOString().split('T')[0] : '–';
+      if (withPkup.length > 0) {
+        const detail = withPkup.map(c => {
+          const iKey = JSON.stringify({ CN: c.issuerDN?.CN, O: c.issuerDN?.O });
+          const sKey = JSON.stringify({ CN: c.subjectDN?.CN, O: c.subjectDN?.O });
+          const ct = c.isCA === true ? (iKey === sKey ? 'Root' : 'Sub-CA') : 'Blatt';
+          return `${c._filename||'?'} [${ct}]: ${fmtD(c.pkupNotBefore)} – ${fmtD(c.pkupNotAfter)}`;
+        }).join('\n');
+        results.push(Utils.pass('CERT_PKUP', 'Private Key Usage Period (Schlüssellaufzeit)', CAT,
+          `${withPkup.length} Zertifikat(e) mit Private Key Usage Period:\n${detail}`,
+          'Das Zertifikat sollte eine Private Key Usage Period Extension enthalten (ermöglicht Verifikation alter Logs).',
+          'BSI TR-03153-1 §8.3'));
+      } else {
+        // Check if leaf certs are missing PKUP (warn) vs CA certs (info)
+        const leafCerts = parsedCerts.filter(c => !c.parseError && c.isCA === false);
+        results.push(leafCerts.length > 0
+          ? Utils.warn('CERT_PKUP', 'Private Key Usage Period (Schlüssellaufzeit)', CAT,
+              'Private Key Usage Period fehlt – empfohlen für TSE-Blatt-Zertifikate.',
+              'Das TSE-Blatt-Zertifikat sollte eine Private Key Usage Period Extension enthalten.',
+              'BSI TR-03153-1 §8.3')
+          : Utils.info('CERT_PKUP', 'Private Key Usage Period (Schlüssellaufzeit)', CAT,
+              'Private Key Usage Period nicht gefunden. Keine Blatt-Zertifikate analysiert.',
+              'Das Zertifikat sollte eine Private Key Usage Period Extension enthalten.',
+              'BSI TR-03116-5'));
+      }
+    }
 
     // CERT_BC_CA
     if (bcCaOk.length > 0) {

@@ -4,7 +4,7 @@
 window.app = (function () {
 
   const S = {
-    tarResult: null, archiveName: null, archiveType: 'standard',
+    tarResult: null, archiveName: null, archiveType: 'export',
     runResult: null, activeCat: null, filterStatus: 'all',
     activeFile: null, activeCert: null,
   };
@@ -41,7 +41,7 @@ window.app = (function () {
   // ── File loading ──────────────────────────────────────────────────────────
   function _loadFile(file) {
     S.archiveName = file.name;
-    S.archiveType = /CertificateExport/i.test(file.name) ? 'cert-export' : 'standard';
+    S.archiveType = /CertificateExport/i.test(file.name) ? 'cert-export' : 'export';
 
     if ($typeBadge) {
       $typeBadge.textContent = S.archiveType === 'cert-export' ? 'CertificateExport' : 'Standard-Export';
@@ -161,7 +161,7 @@ window.app = (function () {
   }
 
   function reset() {
-    Object.assign(S, { tarResult: null, archiveName: null, archiveType: 'standard',
+    Object.assign(S, { tarResult: null, archiveName: null, archiveType: 'export',
       runResult: null, activeCat: null, filterStatus: 'all', activeFile: null, activeCert: null });
     $sidebar.style.display = 'none';
     if ($btnReset)  $btnReset.style.display = 'none';

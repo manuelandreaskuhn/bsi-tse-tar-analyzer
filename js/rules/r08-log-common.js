@@ -89,14 +89,14 @@ window.RulesCat08 = (function() {
           'BSI TR-03116-5'));
 
     // LOG_SERIAL
-    const badSerial = validLogs.filter(l => !l.serialNumber || l.serialNumber.length !== 32);
+    const badSerial = validLogs.filter(l => !l.serialNumber || l.serialNumber.length !== 64); // serialNumber is hex string (32 bytes = 64 hex chars)
     results.push(badSerial.length === 0
       ? Utils.pass('LOG_SERIAL', 'serialNumber vorhanden (32 Byte)', CAT,
           `Alle ${validLogs.length} Logs: serialNumber vorhanden und 32 Byte.`,
           'Das Feld `serialNumber` muss vorhanden sein und exakt 32 Byte lang sein (SHA-256-Hash des öffentlichen Schlüssels der TSE).',
           'BSI TR-03153-1 §9.3.2')
       : Utils.warn('LOG_SERIAL', 'serialNumber vorhanden (32 Byte)', CAT,
-          `${badSerial.length} Logs mit fehlendem/falschem serialNumber:\n${badSerial.map(l=>`  ${l._filename}: ${l.serialNumber?l.serialNumber.length+' Byte':'fehlt'}`).join('\n')}`,
+          `${badSerial.length} Logs mit fehlendem/falschem serialNumber:\n${badSerial.map(l=>`  ${l._filename}: ${l.serialNumber?Math.floor(l.serialNumber.length/2)+' Byte ('+l.serialNumber.length+' Hex-Zeichen)':'fehlt'}`).join('\n')}`,
           'Das Feld `serialNumber` muss vorhanden sein und exakt 32 Byte lang sein.',
           'BSI TR-03153-1 §9.3.2'));
 
@@ -106,9 +106,8 @@ window.RulesCat08 = (function() {
     if (leafCert && leafCert.subjectCN) {
       const mismatch = validLogs.filter(l => {
         if (!l.serialNumber) return false;
-        const snHex = Utils.hexString(l.serialNumber);
-        return !leafCert.subjectCN.toLowerCase().includes(snHex.toLowerCase()) &&
-               !snHex.toLowerCase().includes(leafCert.subjectCN.toLowerCase());
+        const snHex = l.serialNumber; // already a hex string after post-processing
+        return snHex.toLowerCase() !== leafCert.subjectCN.toLowerCase();
       });
       results.push(mismatch.length === 0
         ? Utils.pass('LOG_SERIAL_CERT', 'serialNumber = TSE-Zertifikat CN', CAT,
@@ -175,11 +174,47 @@ window.RulesCat08 = (function() {
           'Das `Sig-{N}`-Segment im Dateinamen muss mit dem `signatureCounter`-Feld übereinstimmen.',
           'BSI TR-03151-1 Dateinamenkonvention'));
 
-    // LOG_FNAME_TIME – simplified: just info
-    results.push(Utils.info('LOG_FNAME_TIME', 'Dateiname: Zeitstempel stimmt', CAT,
-      'Zeitstempel-Konsistenz zwischen Dateiname und signatureCreationTime: Prüfung erfordert Zeitformat-spezifische Konvertierung (Gent/Utc/Unixt).',
-      'Der Zeitstempel im Dateinamen muss inhaltlich mit dem `signatureCreationTime`-Feld übereinstimmen.',
-      'BSI TR-03151-1 Dateinamenkonvention'));
+    // LOG_FNAME_TIME – compare filename timestamp to signatureCreationTime
+    // Filename formats: Unixt_{ts}_Sig-{ctr}..., Gent_{ts}_..., Utc_{ts}_...
+    // For Unixt: ts is unix integer matching signatureCreationTime (also integer)
+    {
+      const withTime = validLogs.filter(l => l.signatureCreationTime != null);
+      if (withTime.length === 0) {
+        results.push(Utils.skip('LOG_FNAME_TIME', 'Dateiname: Zeitstempel stimmt', CAT,
+          'Keine Logs mit signatureCreationTime verfügbar.',
+          'Der Zeitstempel im Dateinamen muss mit `signatureCreationTime` übereinstimmen.',
+          'BSI TR-03151-1 Dateinamenkonvention'));
+      } else {
+        const fails = [];
+        for (const l of withTime) {
+          // Extract format prefix and timestamp from filename
+          const m = l._filename.match(/^(Gent|Utc|Unixt)_([^_]+)_/i);
+          if (!m) continue;
+          const fmt = m[1].toLowerCase();
+          const fnTs = m[2];
+          let match = false;
+          if (fmt === 'unixt') {
+            // Filename has unix integer timestamp
+            match = parseInt(fnTs, 10) === l.signatureCreationTime;
+          } else {
+            // Gent/Utc: compare as string to signatureCreationTimeStr (if available)
+            match = !!l.signatureCreationTimeStr && l.signatureCreationTimeStr === fnTs;
+          }
+          if (!match) {
+            fails.push(`${l._filename}: fn=${fnTs} ≠ sigTime=${l.signatureCreationTime}`);
+          }
+        }
+        results.push(fails.length === 0
+          ? Utils.pass('LOG_FNAME_TIME', 'Dateiname: Zeitstempel stimmt', CAT,
+              `Alle ${withTime.length} Logs: Dateiname-Zeitstempel stimmt mit signatureCreationTime überein.`,
+              'Der Zeitstempel im Dateinamen muss inhaltlich mit dem `signatureCreationTime`-Feld übereinstimmen.',
+              'BSI TR-03151-1 Dateinamenkonvention')
+          : Utils.warn('LOG_FNAME_TIME', 'Dateiname: Zeitstempel stimmt', CAT,
+              `${fails.length} Abweichungen:\n${fails.join('\n')}`,
+              'Der Zeitstempel im Dateinamen muss inhaltlich mit dem `signatureCreationTime`-Feld übereinstimmen.',
+              'BSI TR-03151-1 Dateinamenkonvention'));
+      }
+    }
 
     // LOG_FNAME_EVT
     const sysLogs = validLogs.filter(l => l.logType === 'sys');

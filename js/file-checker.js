@@ -157,7 +157,7 @@ window.FileChecker = (function() {
     }
 
     // LOG_FNAME_TIME
-    const fnTime = bn.match(/^(?:Unixt_)?(\\d+)_/i);
+    const fnTime = bn.match(/^(?:Unixt|Gent|Utc)?_?(\d+)_/i);
     if (fnTime && f.signatureCreationTime != null) {
       const fnT = parseInt(fnTime[1], 10);
       p('LOG_FNAME_TIME', 'Dateiname: Zeitstempel stimmt',

@@ -37,8 +37,9 @@ window.RuleRunner = (function() {
         parsed._filename = basename;
         parsed._path = name;
         parsed._size = entry.size;
-        parsed.logType = logType;
-        parsed.parseError = null;
+        // logType from ASN1 parser ('sys'/'txn'/'audit') takes priority;
+        // store classifyFile result separately for reference
+        parsed._filenameLogType = logType;
         logs.push(parsed);
       } catch (e) {
         logs.push({

@@ -119,8 +119,28 @@ window.UIRenderer = (function () {
           }
 
           const typeClass = `ftype-${['log','pem','cer','crt','cert','csv'].includes(ext) ? ext : 'other'}`;
+          // For cert files: compute and show cert type (Root/Sub-CA/Blatt)
+          let certTypeBadge = '';
+          if (isCert && runResult && runResult.parsedCerts) {
+            const certEntry = runResult.parsedCerts.find(c => {
+              const bn = (c._filename || c._path || '').split('/').pop();
+              return bn === name.split('/').pop();
+            });
+            if (certEntry && !certEntry.parseError && certEntry.isCA !== null) {
+              const iKey = JSON.stringify({ CN: certEntry.issuerDN?.CN, O: certEntry.issuerDN?.O });
+              const sKey = JSON.stringify({ CN: certEntry.subjectDN?.CN, O: certEntry.subjectDN?.O });
+              const ct = certEntry.isCA === true ? (iKey === sKey ? 'root' : 'subca') : 'leaf';
+              const ctColors = { root: '#7c3aed', subca: '#0369a1', leaf: '#059669' };
+              const ctBgs    = { root: '#f5f3ff', subca: '#e0f2fe', leaf: '#ecfdf5' };
+              const ctLabels = { root: 'Root-CA',  subca: 'Sub-CA',  leaf: 'Blatt' };
+              const col = ctColors[ct] || '#6b7280';
+              const bg  = ctBgs[ct]    || '#f9fafb';
+              certTypeBadge = `<span style="padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;color:${col};background:${bg};border:1px solid ${col}40;margin-left:4px">${ctLabels[ct]||ct}</span>`;
+            }
+          }
           row.innerHTML = `<span class="tar-fname">${_esc(name)}</span>
             <span class="tar-ftype ${typeClass}">${_esc(ext)}</span>
+            ${certTypeBadge}
             ${verdictBadge}
             <span class="tar-fsize">${_formatBytes(entry.size)}</span>`;
           listEl.appendChild(row);
