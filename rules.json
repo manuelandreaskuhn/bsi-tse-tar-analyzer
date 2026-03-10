@@ -2156,5 +2156,188 @@
   "BSI": {
     "id": "BSI",
     "name": "TSE-OID"
+  },
+  "INI_LOG_PRESENT": {
+    "id": "INI_LOG_PRESENT",
+    "name": "initialize-Log vorhanden",
+    "rule": "Das Archiv muss mindestens einen SystemLog-Eintrag mit eventType=initialize enthalten.",
+    "pass_text": "initialize-Log vorhanden.",
+    "fail_text": "Kein initialize-Log gefunden.",
+    "ref": "BSI TR-03151-1 §4.6"
+  },
+  "INI_LOG_EVTYPE": {
+    "id": "INI_LOG_EVTYPE",
+    "name": "eventType = initialize",
+    "rule": "Alle initialize-Logs müssen eventType = initialize haben.",
+    "pass_text": "Alle initialize-Logs: eventType korrekt.",
+    "fail_text": "Abweichende eventType-Werte gefunden.",
+    "ref": "BSI TR-03151-1 §4.6"
+  },
+  "INI_LOG_EVORIGIN": {
+    "id": "INI_LOG_EVORIGIN",
+    "name": "eventOrigin = integration-interface",
+    "rule": "Alle initialize-Logs müssen eventOrigin = integration-interface haben.",
+    "pass_text": "Alle initialize-Logs: eventOrigin = integration-interface.",
+    "fail_text": "Logs mit falschem eventOrigin gefunden.",
+    "ref": "BSI TR-03151-1 §4.6"
+  },
+  "INI_LOG_ONCE": {
+    "id": "INI_LOG_ONCE",
+    "name": "Nur ein initialize-Log",
+    "rule": "Es darf maximal ein initialize-Log vorhanden sein.",
+    "pass_text": "Genau ein initialize-Log vorhanden.",
+    "warn_text": "Mehr als ein initialize-Log gefunden.",
+    "ref": "BSI TR-03151-1 §4.6"
+  },
+  "LTL_LOG_PRESENT": {
+    "id": "LTL_LOG_PRESENT",
+    "name": "lockTransactionLogging-Log vorhanden",
+    "rule": "Das Archiv muss einen SystemLog-Eintrag mit eventType=lockTransactionLogging enthalten, wenn diese Funktion genutzt wurde.",
+    "pass_text": "lockTransactionLogging-Log vorhanden.",
+    "fail_text": "Kein lockTransactionLogging-Log.",
+    "ref": "BSI TR-03151-1 §4.9"
+  },
+  "LTL_LOG_EVTYPE": {
+    "id": "LTL_LOG_EVTYPE",
+    "name": "eventType = lockTransactionLogging",
+    "rule": "Alle LTL-Logs müssen eventType = lockTransactionLogging haben.",
+    "pass_text": "Alle LTL-Logs: eventType korrekt.",
+    "fail_text": "Abweichender eventType gefunden.",
+    "ref": "BSI TR-03151-1 §4.9"
+  },
+  "LTL_NEG_TXN": {
+    "id": "LTL_NEG_TXN",
+    "name": "Kein Transaktions-Log nach Sperre",
+    "rule": "Nach lockTransactionLogging dürfen keine neuen TransactionLogs erscheinen.",
+    "pass_text": "Keine Transaktions-Logs nach Sperre.",
+    "fail_text": "TransactionLogs nach lockTransactionLogging vorhanden.",
+    "ref": "BSI TR-03151-1 §4.9"
+  },
+  "REC_LOG_PRESENT": {
+    "id": "REC_LOG_PRESENT",
+    "name": "registerClient-Log vorhanden",
+    "rule": "Das Archiv muss einen SystemLog-Eintrag mit eventType=registerClient enthalten.",
+    "pass_text": "registerClient-Log vorhanden.",
+    "fail_text": "Kein registerClient-Log.",
+    "ref": "BSI TR-03151-1 §4.10"
+  },
+  "REC_LOG_EVTYPE": {
+    "id": "REC_LOG_EVTYPE",
+    "name": "eventType = registerClient",
+    "rule": "Alle REC-Logs müssen eventType = registerClient haben.",
+    "pass_text": "Alle REC-Logs: eventType korrekt.",
+    "fail_text": "Abweichender eventType gefunden.",
+    "ref": "BSI TR-03151-1 §4.10"
+  },
+  "UDD_LOG_START_PRESENT": {
+    "id": "UDD_LOG_START_PRESENT",
+    "name": "updateSoftware-Start-Log vorhanden",
+    "rule": "Es muss ein Start-Log (ohne updateOutcome) für updateSoftware vorhanden sein.",
+    "pass_text": "updateSoftware-Start-Log gefunden.",
+    "warn_text": "Kein Start-Log erkennbar.",
+    "ref": "BSI TR-03151-1 §4.8"
+  },
+  "UDT_LOG_PRESENT": {
+    "id": "UDT_LOG_PRESENT",
+    "name": "updateTime-Log vorhanden",
+    "rule": "Das Archiv muss mindestens einen SystemLog-Eintrag mit eventType=updateTime enthalten.",
+    "pass_text": "updateTime-Log vorhanden.",
+    "fail_text": "Kein updateTime-Log gefunden.",
+    "ref": "BSI TR-03151-1 §4.5"
+  },
+  "UDT_LOG_ABSENT": {
+    "id": "UDT_LOG_ABSENT",
+    "name": "Kein updateTime-Log (Sonderfall)",
+    "rule": "Falls kein updateTime-Log vorhanden ist, muss dies zulässig sein.",
+    "pass_text": "Kein updateTime-Log – zulässig falls kein Zeitsync konfiguriert.",
+    "ref": "BSI TR-03151-1 §4.5"
+  },
+  "UDT_LOG_EVTYPE": {
+    "id": "UDT_LOG_EVTYPE",
+    "name": "eventType = updateTime",
+    "rule": "Alle updateTime-Logs müssen eventType = updateTime haben.",
+    "pass_text": "Alle updateTime-Logs: eventType korrekt.",
+    "fail_text": "Abweichender eventType gefunden.",
+    "ref": "BSI TR-03151-1 §4.5"
+  },
+  "UTL_LOG_PRESENT": {
+    "id": "UTL_LOG_PRESENT",
+    "name": "unlockTransactionLogging-Log vorhanden",
+    "rule": "Nach lockTransactionLogging muss ein unlockTransactionLogging-Log vorhanden sein.",
+    "pass_text": "unlockTransactionLogging-Log vorhanden.",
+    "fail_text": "Kein unlockTransactionLogging-Log.",
+    "ref": "BSI TR-03151-1 §4.9"
+  },
+  "UTL_LOG_EVTYPE": {
+    "id": "UTL_LOG_EVTYPE",
+    "name": "eventType = unlockTransactionLogging",
+    "rule": "Alle UTL-Logs müssen eventType = unlockTransactionLogging haben.",
+    "pass_text": "Alle UTL-Logs: eventType korrekt.",
+    "fail_text": "Abweichender eventType gefunden.",
+    "ref": "BSI TR-03151-1 §4.9"
+  },
+  "UTL_TXN_PRESENT": {
+    "id": "UTL_TXN_PRESENT",
+    "name": "TransactionLogs nach Entsperrung vorhanden",
+    "rule": "Nach unlockTransactionLogging müssen neue TransactionLogs erscheinen können.",
+    "pass_text": "TransactionLogs nach Entsperrung vorhanden.",
+    "info_text": "Keine TransactionLogs nach Entsperrung gefunden.",
+    "ref": "BSI TR-03151-1 §4.9"
+  },
+  "LTL_LOG_EVORIGIN": {
+    "name": "eventOrigin bei lockTransactionLogging",
+    "category": "Sperr- & Entsperr-Log (LTL/UTL)",
+    "rule": "eventOrigin ∈ {integration-interface, SMA}",
+    "pass": "Korrekt.",
+    "fail": "Ungültig.",
+    "ref": "BSI TR-03151-1 §4.10"
+  },
+  "LTL_LOG_EVDATA_EMPTY": {
+    "name": "eventData bei lockTransactionLogging leer",
+    "category": "Sperr- & Entsperr-Log (LTL/UTL)",
+    "rule": "eventData = leer oder leere SEQUENCE",
+    "pass": "eventData korrekt leer.",
+    "fail": "eventData nicht leer.",
+    "ref": "BSI TR-03151-1 §4.10"
+  },
+  "UTL_LOG_EVORIGIN": {
+    "name": "eventOrigin bei unlockTransactionLogging",
+    "category": "Sperr- & Entsperr-Log (LTL/UTL)",
+    "rule": "eventOrigin ∈ {integration-interface, SMA}",
+    "pass": "Korrekt.",
+    "fail": "Ungültig.",
+    "ref": "BSI TR-03151-1 §4.10"
+  },
+  "UTL_LOG_EVDATA_EMPTY": {
+    "name": "eventData bei unlockTransactionLogging leer",
+    "category": "Sperr- & Entsperr-Log (LTL/UTL)",
+    "rule": "eventData = leer oder leere SEQUENCE",
+    "pass": "eventData korrekt leer.",
+    "fail": "eventData nicht leer.",
+    "ref": "BSI TR-03151-1 §4.10"
+  },
+  "REC_LOG_EVORIGIN": {
+    "name": "eventOrigin korrekt bei recertification",
+    "category": "Re-Zertifizierungs-Log (REC_LOG)",
+    "rule": "eventOrigin ∈ {SE, se, integration-interface, device}",
+    "pass": "Korrekt.",
+    "fail": "Ungültig.",
+    "ref": "BSI TR-03151-1 §4.9"
+  },
+  "REC_TXN_CLIENTID_FIELD": {
+    "name": "eventTriggeredByUser in recertification-Log",
+    "category": "Re-Zertifizierungs-Log (REC_LOG)",
+    "rule": "Trigger vorhanden",
+    "pass": "Trigger vorhanden.",
+    "warn": "Trigger fehlt.",
+    "ref": "BSI TR-03151-1 §4.9"
+  },
+  "REC_TXN_FNAME_CLIENT": {
+    "name": "TransactionLog-Dateinamen nach Rezertifizierung konsistent",
+    "category": "Re-Zertifizierungs-Log (REC_LOG)",
+    "rule": "Schema nach Rezertifizierung unverändert",
+    "pass": "Schema konsistent.",
+    "warn": "Unerwartete Dateinamen.",
+    "ref": "BSI TR-03151-1 §4.9"
   }
 }

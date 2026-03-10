@@ -325,15 +325,47 @@ window.RulesCat08 = (function() {
         'Weniger als 2 Log-Nachrichten – Sequenzprüfung nicht anwendbar.', '', 'BSI TR-03153-1 §9.3.2'));
     }
 
-    // LOG_RECERT_FNAME_CONSISTENT / LOG_RECERT_STRUCT_CONSISTENT
-    results.push(Utils.info('LOG_RECERT_FNAME_CONSISTENT', 'Dateinamen-Schema bleibt nach Firmware-Update unverändert', CAT,
-      'Prüfung erfordert Firmware-Update-Kontext (vor/nach Update). Dateinamen-Konsistenz über alle Logs bereits durch LOG_SYS_FNAME/LOG_TXN_FNAME abgedeckt.',
-      'Die Dateinamen aller Log-Nachrichten müssen nach einer Firmware-Aktualisierung demselben Schema entsprechen.',
-      'BSI TR-03153-1 §9.2'));
-    results.push(Utils.info('LOG_RECERT_STRUCT_CONSISTENT', 'ASN.1-Struktur bleibt nach Firmware-Update unverändert', CAT,
-      'Prüfung erfordert Firmware-Update-Kontext (Vergleich der ASN.1-Strukturen vor/nach Update).',
-      'Die ASN.1-Struktur der Log-Nachrichten darf sich durch eine Firmware-Aktualisierung nicht verändern.',
-      'BSI TR-03153-1 §9.3'));
+    // LOG_RECERT_FNAME_CONSISTENT – after updateSoftware/recertification, filenames must follow same schema
+    const recertTriggerLogs = sysLogs.filter(l =>
+      l.eventType === 'updateSoftware' || l.eventType === 'recertification' || l.eventType === 'updateCertificate'
+    );
+    if (recertTriggerLogs.length === 0) {
+      results.push(Utils.skip('LOG_RECERT_FNAME_CONSISTENT', 'Dateinamen-Schema nach Firmware-Update konsistent', CAT,
+        'Keine Firmware-Update- oder Rezertifizierungs-Logs im Archiv.', '', 'BSI TR-03153-1 §9.2'));
+    } else {
+      // Check that all log filenames follow the same time-format prefix throughout
+      const allFileNames = validLogs.map(l=>l._filename).filter(Boolean);
+      const prefixes = [...new Set(allFileNames.map(fn => {
+        const m = fn.match(/^(Gent|Utc|Unixt)_/);
+        return m ? m[1] : null;
+      }).filter(Boolean))];
+      results.push(prefixes.length <= 1
+        ? Utils.pass('LOG_RECERT_FNAME_CONSISTENT', 'Dateinamen-Schema nach Firmware-Update konsistent', CAT,
+            `${recertTriggerLogs.length} Update/Rezertifizierungs-Event(s). Alle ${allFileNames.length} Log-Dateinamen verwenden konsistentes Zeitformat-Präfix${prefixes.length ? ` "${prefixes[0]}"` : ''}.`,
+            'Das Dateinamen-Schema darf sich durch ein Firmware-Update nicht ändern.', 'BSI TR-03153-1 §9.2')
+        : Utils.warn('LOG_RECERT_FNAME_CONSISTENT', 'Dateinamen-Schema nach Firmware-Update konsistent', CAT,
+            `${prefixes.length} verschiedene Zeitformat-Präfixe erkannt: ${prefixes.join(', ')} – mögliche Schema-Änderung nach Update.`,
+            'Das Dateinamen-Schema muss vor und nach einem Firmware-Update identisch sein.', 'BSI TR-03153-1 §9.2'));
+    }
+
+    // LOG_RECERT_STRUCT_CONSISTENT – ASN.1 structure (version, certifiedDataType) consistent across all logs
+    if (recertTriggerLogs.length === 0) {
+      results.push(Utils.skip('LOG_RECERT_STRUCT_CONSISTENT', 'ASN.1-Struktur nach Firmware-Update konsistent', CAT,
+        'Keine Firmware-Update- oder Rezertifizierungs-Logs im Archiv.', '', 'BSI TR-03153-1 §9.3'));
+    } else {
+      const versions    = [...new Set(validLogs.map(l=>l.version).filter(v=>v!=null))];
+      const sigAlgs     = [...new Set(validLogs.map(l=>l.signatureAlgorithm||l.sigAlgName).filter(Boolean))];
+      const structErrors = [];
+      if (versions.length > 1)  structErrors.push(`${versions.length} verschiedene version-Werte: ${versions.join(', ')}`);
+      if (sigAlgs.length > 1)   structErrors.push(`${sigAlgs.length} verschiedene signatureAlgorithm-Werte: ${sigAlgs.join(', ')}`);
+      results.push(structErrors.length === 0
+        ? Utils.pass('LOG_RECERT_STRUCT_CONSISTENT', 'ASN.1-Struktur nach Firmware-Update konsistent', CAT,
+            `Alle ${validLogs.length} Logs: version=${versions[0]||'?'}, signatureAlgorithm=${sigAlgs[0]||'?'} – Struktur einheitlich.`,
+            'Version und signatureAlgorithm dürfen sich durch ein Firmware-Update nicht ändern.', 'BSI TR-03153-1 §9.3')
+        : Utils.warn('LOG_RECERT_STRUCT_CONSISTENT', 'ASN.1-Struktur nach Firmware-Update konsistent', CAT,
+            `Struktur-Inkonsistenz nach Update:\n${structErrors.join('\n')}`,
+            'ASN.1-Struktur muss vor und nach Firmware-Update identisch sein.', 'BSI TR-03153-1 §9.3'));
+    }
 
     // LOG_NEG_TXN, LOG_NEG_UPD_SM, LOG_NEG_SYS
     for (const [id, name] of [

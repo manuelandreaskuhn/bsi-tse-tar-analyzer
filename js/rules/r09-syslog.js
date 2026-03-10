@@ -128,14 +128,31 @@ window.RulesCat09 = (function() {
           'Kein startAudit-Ereignis im Archiv (partieller Export?).', '', 'BSI TR-03153-1 §9.7'));
       }
 
-      // SYS_EVT_SECURE_PAIRS
+      // SYS_EVT_SECURE_PAIRS – check pairing of enterSecureState/exitSecureState
       const enterStates = sysLogs.filter(l => l.eventType === 'enterSecureState');
       const exitStates  = sysLogs.filter(l => l.eventType === 'exitSecureState');
-      results.push(Utils.info('SYS_EVT_SECURE_PAIRS', 'enterSecureState und exitSecureState paarweise', CAT,
-        `enterSecureState: ${enterStates.length}, exitSecureState: ${exitStates.length}.\n` +
-        (enterStates.length !== exitStates.length ? 'HINWEIS: Unterschiedliche Anzahl – ggf. unvollständiger Export.' : 'Gleiche Anzahl vorhanden.'),
-        'enterSecureState und exitSecureState müssen paarweise vorkommen (Ausnahme: partieller Export).',
-        'BSI TR-03153-1'));
+      // Check sequencing: should alternate exit then enter (power loss pattern)
+      const secureEvents = [...enterStates, ...exitStates].sort((a,b)=>(a.signatureCounter||0)-(b.signatureCounter||0));
+      let pairErrors = [];
+      let inSecure = false;
+      for (const ev of secureEvents) {
+        if (ev.eventType === 'enterSecureState') {
+          if (inSecure) pairErrors.push(`enterSecureState ohne vorheriges exitSecureState: ${ev._filename}`);
+          inSecure = true;
+        } else {
+          if (!inSecure) pairErrors.push(`exitSecureState ohne vorheriges enterSecureState: ${ev._filename}`);
+          inSecure = false;
+        }
+      }
+      results.push(pairErrors.length === 0
+        ? (enterStates.length === 0 && exitStates.length === 0
+            ? Utils.info('SYS_EVT_SECURE_PAIRS', 'enterSecureState / exitSecureState paarweise', CAT,
+                'Keine enterSecureState / exitSecureState Ereignisse im Archiv.', '', 'BSI TR-03153-1')
+            : Utils.pass('SYS_EVT_SECURE_PAIRS', 'enterSecureState / exitSecureState paarweise', CAT,
+                `${enterStates.length} enterSecureState, ${exitStates.length} exitSecureState – Sequenz korrekt.`, '', 'BSI TR-03153-1'))
+        : Utils.warn('SYS_EVT_SECURE_PAIRS', 'enterSecureState / exitSecureState paarweise', CAT,
+            `${pairErrors.length} Sequenzfehler:\n${pairErrors.join('\n')}`,
+            'enterSecureState und exitSecureState müssen paarweise und in korrekter Reihenfolge vorkommen.', 'BSI TR-03153-1'));
 
       // SYS_EVT_UPDATETIME_GAP
       const updateTimeLogs = sysLogs.filter(l => l.eventType === 'updateTime' && l.signatureCreationTime);
@@ -162,19 +179,29 @@ window.RulesCat09 = (function() {
           '', 'BSI TR-03153-1'));
       }
 
-      // SYS_EVT_LOGOUT_PRESENT
+      // SYS_EVT_LOGOUT_PRESENT – logout must be present when auth logs exist
       const logoutLogs = sysLogs.filter(l => l.eventType === 'logOut');
-      results.push(Utils.info('SYS_EVT_LOGOUT_PRESENT', 'logOut-Ereignis im Archiv vorhanden', CAT,
-        `${logoutLogs.length} logOut-Ereignis(se) im Archiv.`,
-        'Wenn Nutzer sich abmelden, muss ein logOut-SystemLog vorhanden sein.',
-        'BSI TR-03153-1'));
+      const authLogsForLogout = sysLogs.filter(l => l.eventType === 'authenticateUser' || l.eventType === 'authenticate');
+      results.push(logoutLogs.length > 0
+        ? Utils.pass('SYS_EVT_LOGOUT_PRESENT', 'logOut-Ereignis im Archiv vorhanden', CAT,
+            `${logoutLogs.length} logOut-Ereignis(se) gefunden.`,
+            '', 'BSI TR-03153-1')
+        : authLogsForLogout.length > 0
+          ? Utils.warn('SYS_EVT_LOGOUT_PRESENT', 'logOut-Ereignis im Archiv vorhanden', CAT,
+              `${authLogsForLogout.length} Authentifizierungs-Logs vorhanden, aber kein logOut-Ereignis gefunden.`,
+              'Wenn Nutzer sich anmelden, muss auch ein logOut-SystemLog vorhanden sein.', 'BSI TR-03153-1')
+          : Utils.info('SYS_EVT_LOGOUT_PRESENT', 'logOut-Ereignis im Archiv vorhanden', CAT,
+              'Keine Authentifizierungs- oder logOut-Ereignisse im Archiv.', '', 'BSI TR-03153-1'));
 
-      // SYS_EVT_SELFTEST_PRESENT
+      // SYS_EVT_SELFTEST_PRESENT – at least one selfTest should be present
       const selfTestLogs = sysLogs.filter(l => l.eventType === 'selfTest');
-      results.push(Utils.info('SYS_EVT_SELFTEST_PRESENT', 'selfTest-Ereignis im Archiv vorhanden', CAT,
-        `${selfTestLogs.length} selfTest-Ereignis(se) im Archiv.`,
-        'selfTest-Ereignisse dokumentieren automatische oder externe Selbsttests.',
-        'BSI TR-03153-1'));
+      results.push(selfTestLogs.length > 0
+        ? Utils.pass('SYS_EVT_SELFTEST_PRESENT', 'selfTest-Ereignis im Archiv vorhanden', CAT,
+            `${selfTestLogs.length} selfTest-Ereignis(se) gefunden.`,
+            '', 'BSI TR-03153-1')
+        : Utils.info('SYS_EVT_SELFTEST_PRESENT', 'selfTest-Ereignis im Archiv vorhanden', CAT,
+            'Kein selfTest-Ereignis im Archiv. Erwartet wird mindestens ein selfTest-Log im Betriebslebenszyklus.',
+            'selfTest-Ereignisse dokumentieren Selbsttests der TSE.', 'BSI TR-03153-1'));
     }
 
     // EVDATA_* checks
@@ -184,18 +211,79 @@ window.RulesCat09 = (function() {
       'Prüfung der ASN.1-eventData-Struktur bei startAudit-Ereignissen.',
       'Bei startAudit-Ereignissen muss eventData eine leere ASN.1-SEQUENCE sein.',
       'BSI TR-03151-1 §5.4'));
-    results.push(Utils.info('EVDATA_EXITSECURE', 'eventData bei exitSecureState ist leere ASN.1-Sequenz', CAT,
-      'Prüfung der ASN.1-eventData-Struktur bei exitSecureState-Ereignissen.',
-      'Bei exitSecureState-Ereignissen muss eventData eine leere ASN.1-SEQUENCE sein.',
-      'BSI TR-03151-1 §5.4'));
-    results.push(Utils.info('EVDATA_UPDATETIME', 'seTimeAfterUpdate in updateTime-Ereignissen', CAT,
-      'Prüfung ob seTimeAfterUpdate in UpdateTimeEventData vorhanden ist.',
-      'Bei updateTime-Ereignissen muss seTimeAfterUpdate in den eventData vorhanden sein.',
-      'BSI TR-03151-1 §5.4'));
-    results.push(Utils.info('EVDATA_ENTERSTATE_TIMEOFEVENT', 'timeOfEvent bei enterSecureState', CAT,
-      'Prüfung ob timeOfEvent in EnterSecureStateEventData vorhanden ist.',
-      'Bei enterSecureState-Ereignissen muss timeOfEvent in den eventData vorhanden sein.',
-      'BSI TR-03151-1 §5.4'));
+
+    // EVDATA_EXITSECURE – eventData must be null or empty SEQUENCE (0x30 0x00)
+    const exitLogs = sysLogsAll.filter(l=>l.eventType==='exitSecureState');
+    if (exitLogs.length === 0) {
+      results.push(Utils.skip('EVDATA_EXITSECURE', 'eventData bei exitSecureState ist leere ASN.1-Sequenz', CAT,
+        'Keine exitSecureState-Logs.', '', 'BSI TR-03151-1 §5.4'));
+    } else {
+      const notEmpty = exitLogs.filter(l => {
+        if (!l.eventData || l.eventData.length === 0) return false;
+        if (l.eventData.length === 2 && l.eventData[0] === 0x30 && l.eventData[1] === 0x00) return false;
+        return true;
+      });
+      results.push(notEmpty.length === 0
+        ? Utils.pass('EVDATA_EXITSECURE', 'eventData bei exitSecureState ist leere ASN.1-Sequenz', CAT,
+            `Alle ${exitLogs.length} exitSecureState-Logs: eventData korrekt leer oder leere SEQUENCE.`,
+            'Bei exitSecureState muss eventData leer oder eine leere SEQUENCE (0x30 0x00) sein.',
+            'BSI TR-03151-1 §5.4')
+        : Utils.fail('EVDATA_EXITSECURE', 'eventData bei exitSecureState ist leere ASN.1-Sequenz', CAT,
+            `${notEmpty.length} exitSecureState-Logs mit nicht-leerem eventData: ${notEmpty.map(l=>l._filename).join(', ')}`,
+            'eventData muss leer oder eine leere SEQUENCE (0x30 0x00) sein.',
+            'BSI TR-03151-1 §5.4'));
+    }
+
+    // EVDATA_UPDATETIME – seTimeAfterUpdate in updateTime logs (parsed in r18-time-checks.js)
+    const udtLogsAll = sysLogsAll.filter(l=>l.eventType==='updateTime');
+    if (udtLogsAll.length === 0) {
+      results.push(Utils.skip('EVDATA_UPDATETIME', 'seTimeAfterUpdate in updateTime-Ereignissen', CAT,
+        'Keine updateTime-Logs.', '', 'BSI TR-03151-1 §5.4'));
+    } else {
+      const noTime = udtLogsAll.filter(l => !l.seTimeAfterUpdate && !l.udtSeAfter);
+      results.push(noTime.length === 0
+        ? Utils.pass('EVDATA_UPDATETIME', 'seTimeAfterUpdate in updateTime-Ereignissen vorhanden', CAT,
+            `Alle ${udtLogsAll.length} updateTime-Logs: seTimeAfterUpdate-Feld vorhanden.`,
+            'UpdateTimeEventData muss seTimeAfterUpdate enthalten.', 'BSI TR-03151-1 §5.4')
+        : Utils.warn('EVDATA_UPDATETIME', 'seTimeAfterUpdate in updateTime-Ereignissen vorhanden', CAT,
+            `${noTime.length} updateTime-Logs ohne erkanntes seTimeAfterUpdate-Feld.`,
+            'UpdateTimeEventData muss seTimeAfterUpdate enthalten.', 'BSI TR-03151-1 §5.4'));
+    }
+
+    // EVDATA_ENTERSTATE_TIMEOFEVENT – timeOfEvent in enterSecureState eventData
+    const enterLogs = sysLogsAll.filter(l=>l.eventType==='enterSecureState');
+    if (enterLogs.length === 0) {
+      results.push(Utils.skip('EVDATA_ENTERSTATE_TIMEOFEVENT', 'timeOfEvent in enterSecureState-Ereignissen', CAT,
+        'Keine enterSecureState-Logs.', '', 'BSI TR-03151-1 §5.4'));
+    } else {
+      // EnterSecureStateEventData: SEQUENCE { timeOfEvent GeneralizedTime }
+      // Try to parse eventData as ASN.1: SEQUENCE containing a GeneralizedTime
+      const parseErrors = [];
+      const noTimeField = [];
+      for (const log of enterLogs) {
+        if (!log.eventData || log.eventData.length < 4) { noTimeField.push(log._filename); continue; }
+        try {
+          const seq = ASN1.readTLV(log.eventData, 0);
+          if (!seq || seq.tag !== 0x30) { noTimeField.push(log._filename); continue; }
+          const inner = ASN1.readTLV(log.eventData, seq.start + seq.headerLen);
+          // GeneralizedTime tag = 0x18, UTCTime = 0x17
+          if (!inner || (inner.tag !== 0x18 && inner.tag !== 0x17)) {
+            noTimeField.push(log._filename);
+          }
+        } catch (e) { parseErrors.push(log._filename); }
+      }
+      results.push(noTimeField.length === 0 && parseErrors.length === 0
+        ? Utils.pass('EVDATA_ENTERSTATE_TIMEOFEVENT', 'timeOfEvent in enterSecureState-Ereignissen', CAT,
+            `Alle ${enterLogs.length} enterSecureState-Logs: EnterSecureStateEventData mit timeOfEvent (GeneralizedTime/UTCTime) korrekt erkannt.`,
+            'EnterSecureStateEventData muss timeOfEvent als GeneralizedTime oder UTCTime enthalten.', 'BSI TR-03151-1 §5.4')
+        : noTimeField.length > 0
+          ? Utils.fail('EVDATA_ENTERSTATE_TIMEOFEVENT', 'timeOfEvent in enterSecureState-Ereignissen', CAT,
+              `${noTimeField.length} enterSecureState-Logs ohne erkennbares timeOfEvent-Feld: ${noTimeField.join(', ')}`,
+              'EnterSecureStateEventData muss timeOfEvent enthalten.', 'BSI TR-03151-1 §5.4')
+          : Utils.warn('EVDATA_ENTERSTATE_TIMEOFEVENT', 'timeOfEvent in enterSecureState-Ereignissen', CAT,
+              `${parseErrors.length} enterSecureState-Logs mit ASN.1-Parse-Fehler: ${parseErrors.join(', ')}`,
+              'EnterSecureStateEventData muss timeOfEvent enthalten.', 'BSI TR-03151-1 §5.4'));
+    }
     results.push(Utils.info('EVDATA_AUTH_RESULT', 'authenticationResult bei Authentifizierungsereignissen', CAT,
       'authenticationResult-Felder in authenticateUser-Logs.',
       'AuthenticationEventData muss authenticationResult enthalten.',

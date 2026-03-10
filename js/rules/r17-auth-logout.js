@@ -38,15 +38,59 @@ window.RulesCat17 = (function() {
             `${badResult.length} Logs mit ungültigem authenticationResult.`, '', 'BSI TR-03151-1 §4.4.1'));
     }
 
-    // EVDATA_AUTH_RETRIES_MAX / DECREMENT / ZERO_BLOCKED
-    for (const [id, name, desc] of [
-      ['EVDATA_AUTH_RETRIES_MAX', 'Maximale Wiederholungsanzahl korrekt', 'remainingRetries darf den konfigurierten Maximalwert nicht überschreiten.'],
-      ['EVDATA_AUTH_RETRIES_DECREMENT', 'Wiederholungsanzahl dekrementiert', 'Nach fehlgeschlagenem Authentifizierungsversuch muss remainingRetries dekrementiert sein.'],
-      ['EVDATA_AUTH_RETRIES_ZERO_BLOCKED', 'Kein Login nach remainingRetries=0', 'Nach remainingRetries=0 darf kein erfolgreicher Login-Eintrag folgen.'],
-    ]) {
-      results.push(Utils.info(id, name, CAT,
-        `${authLogs.length} authenticate-Logs vorhanden. ${desc} Vollständige Prüfung erfordert zustandsbehaftete Auswertung.`,
-        desc, 'BSI TR-03151-1 §4.4.1'));
+    // EVDATA_AUTH_RETRIES_MAX / DECREMENT / ZERO_BLOCKED – sequential analysis
+    if (authLogs.length === 0) {
+      ['EVDATA_AUTH_RETRIES_MAX','EVDATA_AUTH_RETRIES_DECREMENT','EVDATA_AUTH_RETRIES_ZERO_BLOCKED'].forEach(id =>
+        results.push(Utils.skip(id, id, CAT, 'Keine authenticate-Logs.', '', 'BSI TR-03151-1 §4.4.1')));
+    } else {
+      // Sort auth logs by signatureCounter for sequential analysis
+      const sortedAuth = [...authLogs].sort((a,b)=>(a.signatureCounter||0)-(b.signatureCounter||0));
+
+      // EVDATA_AUTH_RETRIES_MAX: remainingRetries after success must equal configured max (we can only check monotonicity)
+      const withRetries = sortedAuth.filter(l=>l.eventDataRemainingRetries !== undefined);
+      results.push(Utils.info('EVDATA_AUTH_RETRIES_MAX', 'remainingRetries nach Erfolg = ICS-Maximalwert', CAT,
+        `${withRetries.length} von ${authLogs.length} Logs mit geparsten remainingRetries. Maximalwert aus ICS-Konfiguration nicht verfügbar (statische Analyse).`,
+        'remainingRetries muss nach erfolgreicher Authentifizierung dem konfigurierten Maximum entsprechen.', 'BSI TR-03151-1 §4.4.1'));
+
+      // EVDATA_AUTH_RETRIES_DECREMENT: after failed auth, remainingRetries must decrease
+      let decrErrors = [];
+      let prevRetries = null, prevLog = null;
+      for (const l of sortedAuth) {
+        const r = l.eventDataRemainingRetries;
+        const failed = l.eventDataAuthResultEnum !== undefined ? l.eventDataAuthResultEnum !== 0
+                      : (l.eventDataAuthResult === false);
+        if (failed && prevRetries !== null && r !== undefined) {
+          if (r >= prevRetries) {
+            decrErrors.push(`${l._filename}: remainingRetries=${r} nicht kleiner als vorher=${prevRetries}`);
+          }
+        }
+        if (r !== undefined) { prevRetries = r; prevLog = l; }
+      }
+      results.push(decrErrors.length === 0
+        ? Utils.pass('EVDATA_AUTH_RETRIES_DECREMENT', 'remainingRetries dekrementiert bei Fehler', CAT,
+            withRetries.length > 0
+              ? `${withRetries.length} Logs mit remainingRetries geprüft – Dekrement nach Fehlversuchen korrekt.`
+              : `Keine Logs mit geparsten remainingRetries (eventData-Parsing).`,
+            '', 'BSI TR-03151-1 §4.4.1')
+        : Utils.fail('EVDATA_AUTH_RETRIES_DECREMENT', 'remainingRetries dekrementiert bei Fehler', CAT,
+            `${decrErrors.length} Verletzungen:\n${decrErrors.join('\n')}`,
+            'Nach fehlgeschlagenem Authentifizierungsversuch muss remainingRetries dekrementiert sein.', 'BSI TR-03151-1 §4.4.1'));
+
+      // EVDATA_AUTH_RETRIES_ZERO_BLOCKED: after remainingRetries=0, no successful login
+      const zeroRetryIdx = sortedAuth.findIndex(l=>l.eventDataRemainingRetries === 0);
+      if (zeroRetryIdx < 0) {
+        results.push(Utils.info('EVDATA_AUTH_RETRIES_ZERO_BLOCKED', 'remainingRetries=0 → PIN gesperrt, kein Login möglich', CAT,
+          'Kein Log mit remainingRetries=0 gefunden.', '', 'BSI TR-03151-1 §4.4.1'));
+      } else {
+        const afterZero = sortedAuth.slice(zeroRetryIdx+1);
+        const successAfterZero = afterZero.filter(l=>l.eventDataAuthResultEnum===0||l.eventDataAuthResult===true);
+        results.push(successAfterZero.length === 0
+          ? Utils.pass('EVDATA_AUTH_RETRIES_ZERO_BLOCKED', 'remainingRetries=0 → kein Login möglich', CAT,
+              `remainingRetries=0 in ${sortedAuth[zeroRetryIdx]._filename}. Kein erfolgreicher Login danach.`, '', 'BSI TR-03151-1 §4.4.1')
+          : Utils.fail('EVDATA_AUTH_RETRIES_ZERO_BLOCKED', 'remainingRetries=0 → kein Login möglich', CAT,
+              `${successAfterZero.length} erfolgreiche Logins nach remainingRetries=0: ${successAfterZero.map(l=>l._filename).join(', ')}`,
+              'Nach remainingRetries=0 (pinBlocked) darf kein erfolgreicher Login folgen.', 'BSI TR-03151-1 §4.4.1'));
+      }
     }
 
     // EVDATA_AUTH_TRIGGER
@@ -96,13 +140,58 @@ window.RulesCat17 = (function() {
       : Utils.pass('EVDATA_SELFTEST_TRIGGER', 'Trigger bei selfTest vorhanden', CAT,
           `${selfTestLogs.length} selfTest-Logs gefunden.`, '', 'BSI TR-03151-1 §4.4.4'));
 
-    // IMPLICIT_LOGOUT_PRESENT / ABSENT_SAME_USER
-    results.push(Utils.info('IMPLICIT_LOGOUT_PRESENT', 'Impliziter Logout bei Nutzerwechsel vorhanden', CAT,
-      'Prüfung erfordert kontextuelle Analyse: Wenn Benutzer A eingeloggt ist und Benutzer B sich anmeldet, muss ein impliziter Logout für Benutzer A vorhanden sein.',
-      '', 'BSI TR-03151-1 §4.4.2'));
-    results.push(Utils.info('IMPLICIT_LOGOUT_ABSENT_SAME_USER', 'Kein impliziter Logout bei erneutem Login gleichen Nutzers', CAT,
-      'Bei erneutem Login desselben Benutzers darf KEIN impliziter Logout-Eintrag erscheinen.',
-      '', 'BSI TR-03151-1 §4.4.2'));
+    // IMPLICIT_LOGOUT_PRESENT / ABSENT_SAME_USER – sequential session analysis
+    // Build session timeline: sort all auth and logout events by signatureCounter
+    const sessionEvents = [...authLogs, ...logoutLogs].sort((a,b)=>(a.signatureCounter||0)-(b.signatureCounter||0));
+    let implicitErrors = [], implicitSameUserErrors = [];
+    let currentUser = null;
+    for (const ev of sessionEvents) {
+      if (ev.logType === 'sys' && ev.eventType === 'authenticate') {
+        const newUser = ev.eventTriggeredByUser || null;
+        if (currentUser !== null && newUser !== null && newUser !== currentUser) {
+          // User switch: check for implicit logout before this event
+          const implicitBefore = logoutLogs.find(l =>
+            (l.logOutCaseStr === 'differentUserLoggedIn' || l.logOutCaseEnum === 1) &&
+            l.signatureCounter < ev.signatureCounter &&
+            l.signatureCounter > (sessionEvents.filter(e=>e.signatureCounter<ev.signatureCounter).pop()?.signatureCounter||0)
+          );
+          if (!implicitBefore) {
+            implicitErrors.push(`Nutzerwechsel ${currentUser}→${newUser} bei ${ev._filename} ohne impliziten logout`);
+          }
+        }
+        if (currentUser !== null && newUser === currentUser) {
+          // Same user re-auth: must NOT have implicit logout
+          const implicitBetween = logoutLogs.find(l =>
+            (l.logOutCaseStr === 'differentUserLoggedIn' || l.logOutCaseEnum === 1) &&
+            l.signatureCounter < ev.signatureCounter
+          );
+          if (implicitBetween) {
+            implicitSameUserErrors.push(`Gleicher Nutzer ${currentUser} re-auth (${ev._filename}), aber implizites logout (${implicitBetween._filename}) vorhanden`);
+          }
+        }
+        currentUser = newUser;
+      } else if (ev.logType === 'sys' && (ev.eventType === 'logout' || ev.eventType === 'logOut')) {
+        if (ev.logOutCaseStr === 'userLoggedOut' || ev.logOutCaseEnum === 3) currentUser = null;
+        if (ev.logOutCaseStr === 'differentUserLoggedIn' || ev.logOutCaseEnum === 1) { /* handled above */ }
+      }
+    }
+    results.push(implicitErrors.length === 0
+      ? Utils.pass('IMPLICIT_LOGOUT_PRESENT', 'Impliziter logout bei Nutzerwechsel vorhanden', CAT,
+          sessionEvents.length > 0
+            ? `Session-Sequenzanalyse: ${sessionEvents.length} Ereignisse, kein fehlender impliziter logout erkannt.`
+            : 'Keine Auth-/Logout-Ereignisse im Archiv.',
+          '', 'BSI TR-03151-1 §4.4.2')
+      : Utils.fail('IMPLICIT_LOGOUT_PRESENT', 'Impliziter logout bei Nutzerwechsel vorhanden', CAT,
+          `${implicitErrors.length} fehlende implizite Logout-Einträge:\n${implicitErrors.join('\n')}`,
+          'Bei Nutzerwechsel muss ein implizites logOut-Ereignis vorhanden sein.', 'BSI TR-03151-1 §4.4.2'));
+
+    results.push(implicitSameUserErrors.length === 0
+      ? Utils.pass('IMPLICIT_LOGOUT_ABSENT_SAME_USER', 'Kein impliziter logout bei Neuauth gleichen Nutzers', CAT,
+          'Kein unerwarteter impliziter logout bei Neuauthentifizierung desselben Nutzers gefunden.',
+          '', 'BSI TR-03151-1 §4.4.2')
+      : Utils.fail('IMPLICIT_LOGOUT_ABSENT_SAME_USER', 'Kein impliziter logout bei Neuauth gleichen Nutzers', CAT,
+          `${implicitSameUserErrors.length} Fehler:\n${implicitSameUserErrors.join('\n')}`,
+          'Bei Neuauthentifizierung desselben Nutzers darf kein impliziter logout vorhanden sein.', 'BSI TR-03151-1 §4.4.2'));
 
     return results;
   }

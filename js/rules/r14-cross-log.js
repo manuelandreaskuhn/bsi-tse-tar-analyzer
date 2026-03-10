@@ -85,12 +85,21 @@ window.RulesCat14 = (function() {
           `${uniquePfx.length} verschiedene Zeitformat-Präfixe: ${uniquePfx.join(', ')}`,
           '', 'BSI TR-03151-1'));
 
-    // CROSS_LOG_CLIENTIDS
-    const txnLogs = validLogs.filter(l => l.logType === 'txn' && l.clientId);
-    const clientIds = [...new Set(txnLogs.map(l=>l.clientId))];
-    results.push(Utils.info('CROSS_LOG_CLIENTIDS', 'Inventar aller clientId-Werte', CAT,
-      `${clientIds.length} eindeutige clientId(s) im Archiv:\n${clientIds.join('\n')}`,
-      'Inventar aller clientId-Werte aus den TransactionLogs.', 'BSI TR-03153-1 §9.2'));
+    // CROSS_LOG_CLIENTIDS – check that all txn logs have a clientId and list them
+    const txnLogs = validLogs.filter(l => l.logType === 'txn');
+    const txnWithClient = txnLogs.filter(l => l.clientId);
+    const txnNoClient   = txnLogs.filter(l => !l.clientId);
+    const clientIds = [...new Set(txnWithClient.map(l=>l.clientId))];
+    results.push(txnLogs.length === 0
+      ? Utils.skip('CROSS_LOG_CLIENTIDS', 'Alle TransactionLogs haben clientId', CAT,
+          'Keine TransactionLogs.', '', 'BSI TR-03153-1 §9.2')
+      : txnNoClient.length === 0
+        ? Utils.pass('CROSS_LOG_CLIENTIDS', 'Alle TransactionLogs haben clientId', CAT,
+            `${clientIds.length} clientId(s) in ${txnLogs.length} TransactionLogs:\n${clientIds.join('\n')}`,
+            'Jeder TransactionLog muss eine clientId enthalten.', 'BSI TR-03153-1 §9.2')
+        : Utils.warn('CROSS_LOG_CLIENTIDS', 'Alle TransactionLogs haben clientId', CAT,
+            `${txnNoClient.length} von ${txnLogs.length} TransactionLogs ohne clientId.`,
+            'Jeder TransactionLog muss eine clientId enthalten.', 'BSI TR-03153-1 §9.2'));
 
     // CSC_CROSS_LOG
     results.push(Utils.info('CSC_CROSS_LOG', 'Signaturzähler stimmt mit TAR-Log überein', CAT,

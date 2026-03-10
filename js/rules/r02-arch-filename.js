@@ -29,9 +29,9 @@ window.RulesCat02 = (function() {
       }
 
       // EXP_ARCH_TYPE
-      results.push(Utils.info('EXP_ARCH_TYPE', 'Archiv-Typ (info)', CAT,
-        'Standard-Datenexport (Export_*) – enthält Logs, Zertifikate + info.csv.',
-        'Informationsmeldung über den Archiv-Typ.',
+      results.push(Utils.pass('EXP_ARCH_TYPE', 'Archiv-Typ korrekt erkannt: Standard-Export', CAT,
+        'Archiv-Dateiname entspricht Schema Export_* → Typ „Standard-Datenexport" korrekt erkannt.',
+        'Ein Standard-Datenexport (Export_*) enthält Logs, Zertifikate und info.csv.',
         'BSI TR-03151-1 §5.2'));
 
       // EXP_ARCH_SPLIT
@@ -84,9 +84,9 @@ window.RulesCat02 = (function() {
       }
 
       // EXP_ARCH_TYPE_CERT
-      results.push(Utils.info('EXP_ARCH_TYPE_CERT', 'Archiv-Typ (info)', CAT,
-        'CertificateExport – enthält ausschließlich Zertifikate + info.csv (keine Log-Nachrichten).',
-        'Informationsmeldung über den Archiv-Typ.',
+      results.push(Utils.pass('EXP_ARCH_TYPE_CERT', 'Archiv-Typ korrekt erkannt: CertificateExport', CAT,
+        'Archiv-Dateiname entspricht Schema CertificateExport_* → Typ „CertificateExport" korrekt erkannt.',
+        'Ein CertificateExport enthält ausschließlich Zertifikate und info.csv (keine Log-Nachrichten).',
         'BSI TR-03151-1 §5.2'));
 
       // EXP_ARCH_SPLIT_CERT

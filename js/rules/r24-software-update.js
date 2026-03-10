@@ -2,76 +2,338 @@
 'use strict';
 window.RulesCat24 = (function() {
   const CAT = 'Software-Updates & SE-Events (DSE / UDD / SDE / STE)';
+  const REF = 'BSI TR-03151-1 §4.8';
 
-  function makeEvtChecks(results, logs, evtType, ids, cat) {
-    const evLogs = logs.filter(l=>l.eventType===evtType);
-    if (evLogs.length===0) {
-      ids.forEach(([id,name]) => results.push(Utils.skip(id, name, cat, `Keine ${evtType}-Logs.`, '', 'BSI TR-03151-1 §4.8')));
-      return;
+  // Parse eventData as ASN.1 SEQUENCE children
+  function parseEvtData(log) {
+    if (!log.eventData || log.eventData.length === 0) return { isEmpty: true, kids: [] };
+    try {
+      const buf = log.eventData;
+      // Accept empty SEQUENCE: 0x30 0x00
+      if (buf.length === 2 && buf[0] === 0x30 && buf[1] === 0x00) return { isEmpty: true, kids: [] };
+      if (buf[0] === 0x30) {
+        const seq = ASN1.readTLV(buf, 0);
+        if (!seq) return { isEmpty: false, kids: [], error: 'Kein SEQUENCE-Tag' };
+        const kids = ASN1.parseChildren(buf, seq.valueStart, seq.valueEnd);
+        return { isEmpty: false, kids, seq };
+      }
+      return { isEmpty: false, kids: [], error: `Unbekannter Tag 0x${buf[0].toString(16)}` };
+    } catch(e) { return { isEmpty: false, kids: [], error: e.message }; }
+  }
+
+  // Read a UTF8/Printable string from a TLV
+  function readStr(tlv) {
+    if (!tlv || !tlv.value) return null;
+    const STR_TAGS = [0x0C,0x13,0x16,0x1A,0x1B];
+    if (STR_TAGS.includes(tlv.tag)) {
+      try { return new TextDecoder('utf-8',{fatal:false}).decode(tlv.value); } catch { return null; }
     }
-    results.push(Utils.pass(ids[0][0], ids[0][1], cat, `${evLogs.length} ${evtType}-Log(s).`, '', 'BSI TR-03151-1 §4.8'));
-    ids.slice(1).forEach(([id,name]) => results.push(Utils.info(id, name, cat, `${evLogs.length} ${evtType}-Logs. Prüfung erfordert eventData-Parsing.`, '', 'BSI TR-03151-1 §4.8')));
+    return null;
   }
 
   function run(ctx) {
     const results = [];
-    const { parsedLogs, archiveType } = ctx;
+    const { parsedLogs, archiveType, infoRows, tarResult } = ctx;
     if (archiveType === 'cert-export') {
       const ALL = ['DSE_LOG_PRESENT','DSE_LOG_EVTYPE','DSE_LOG_EVORIGIN','DSE_LOG_EVDATA_EMPTY','DSE_FINAL_LOG',
         'UDD_LOG_START_PRESENT','UDD_LOG_COMP_PRESENT','UDD_LOG_EVTYPE_START','UDD_LOG_EVTYPE_COMP','UDD_EVDATA_ASN1',
         'UDD_COMP_NAMES','UDD_OUTCOME_VALID','UDD_OUTCOME_SUCCESS_NO_REASON','UDD_NO_USER_EXTERNAL',
         'SDE_LOG_PRESENT','SDE_LOG_EVTYPE','SDE_LOG_EVORIGIN','SDE_LOG_NEWDESC','SDE_INFO_CSV_PRESENT','SDE_INFO_DESC',
         'STE_LOG_PRESENT','STE_LOG_EVTYPE','STE_LOG_EVORIGIN','STE_EVDATA_STRUCT','STE_EVDATA_CONSISTENT','STE_EVDATA_MATCH_API'];
-      ALL.forEach(id => results.push(Utils.skip(id, id, CAT, 'CertificateExport.', '', 'BSI TR-03151-1 §4.8')));
+      ALL.forEach(id => results.push(Utils.skip(id, id, CAT, 'CertificateExport.', '', REF)));
       return results;
     }
 
     const sysLogs = (parsedLogs||[]).filter(l=>!l.parseError && l.logType==='sys');
+    const allLogs = (parsedLogs||[]).filter(l=>!l.parseError);
+    const maxCtr  = allLogs.length > 0 ? Math.max(...allLogs.map(l=>l.signatureCounter||0)) : 0;
 
-    // DSE
-    makeEvtChecks(results, sysLogs, 'disableSecureElement', [
-      ['DSE_LOG_PRESENT','disableSecureElement-Log vorhanden'],
-      ['DSE_LOG_EVTYPE','eventType=disableSecureElement'],
-      ['DSE_LOG_EVORIGIN','eventOrigin korrekt'],
-      ['DSE_LOG_EVDATA_EMPTY','eventData leer'],
-      ['DSE_FINAL_LOG','disableSecureElement ist letzter Log-Eintrag'],
-    ], CAT);
-
-    // UDD (updateSoftware)
-    const uddStart = sysLogs.filter(l=>l.eventType==='updateSoftware' && (l.eventData||'').toString().includes('start'));
-    const uddComp  = sysLogs.filter(l=>l.eventType==='updateSoftware' && (l.eventData||'').toString().includes('completed'));
-    const uddAll   = sysLogs.filter(l=>l.eventType==='updateSoftware');
-    if (uddAll.length===0) {
-      ['UDD_LOG_START_PRESENT','UDD_LOG_COMP_PRESENT','UDD_LOG_EVTYPE_START','UDD_LOG_EVTYPE_COMP',
-       'UDD_EVDATA_ASN1','UDD_COMP_NAMES','UDD_OUTCOME_VALID','UDD_OUTCOME_SUCCESS_NO_REASON','UDD_NO_USER_EXTERNAL'].forEach(id =>
-        results.push(Utils.skip(id, id, CAT, 'Keine updateSoftware-Logs.', '', 'BSI TR-03151-1 §4.8')));
+    // ── DSE (disableSecureElement) ────────────────────────────────────────
+    const dseLogs = sysLogs.filter(l=>l.eventType==='disableSecureElement');
+    if (dseLogs.length === 0) {
+      ['DSE_LOG_PRESENT','DSE_LOG_EVTYPE','DSE_LOG_EVORIGIN','DSE_LOG_EVDATA_EMPTY','DSE_FINAL_LOG'].forEach(id =>
+        results.push(Utils.skip(id, id, CAT, 'Keine disableSecureElement-Logs.', '', REF)));
     } else {
-      results.push(Utils.pass('UDD_LOG_START_PRESENT', 'updateSoftware-Start-Log vorhanden', CAT, `${uddAll.length} updateSoftware-Logs.`, '', 'BSI TR-03151-1 §4.8'));
-      results.push(Utils.info('UDD_LOG_COMP_PRESENT', 'updateSoftware-Completed-Log vorhanden', CAT, `${uddAll.length} updateSoftware-Logs.`, '', 'BSI TR-03151-1 §4.8'));
-      ['UDD_LOG_EVTYPE_START','UDD_LOG_EVTYPE_COMP','UDD_EVDATA_ASN1','UDD_COMP_NAMES',
-       'UDD_OUTCOME_VALID','UDD_OUTCOME_SUCCESS_NO_REASON','UDD_NO_USER_EXTERNAL'].forEach(id =>
-        results.push(Utils.info(id, id, CAT, 'Prüfung erfordert eventData-Parsing.', '', 'BSI TR-03151-1 §4.8')));
+      results.push(Utils.pass('DSE_LOG_PRESENT', 'disableSecureElement-Log vorhanden', CAT,
+        `${dseLogs.length} disableSecureElement-Log(s) gefunden.`, '', REF));
+
+      // DSE_LOG_EVTYPE: trivially true since we filtered by it
+      results.push(Utils.pass('DSE_LOG_EVTYPE', 'eventType = disableSecureElement', CAT,
+        `Alle ${dseLogs.length} Logs haben eventType = "disableSecureElement".`, '', REF));
+
+      // DSE_LOG_EVORIGIN: must be 'SMA' or 'device'
+      const validDseOrigins = ['SMA','device'];
+      const badOrigin = dseLogs.filter(l => !validDseOrigins.includes(l.eventOrigin||''));
+      results.push(badOrigin.length === 0
+        ? Utils.pass('DSE_LOG_EVORIGIN', 'eventOrigin ∈ {SMA, device}', CAT,
+            `Alle ${dseLogs.length} Logs: eventOrigin korrekt (${[...new Set(dseLogs.map(l=>l.eventOrigin))].join(', ')}).`, '', REF)
+        : Utils.fail('DSE_LOG_EVORIGIN', 'eventOrigin ∈ {SMA, device}', CAT,
+            `${badOrigin.length} Logs mit ungültigem eventOrigin: ${badOrigin.map(l=>`${l._filename}→"${l.eventOrigin||'(fehlt)'}"`).join(', ')}`,
+            'eventOrigin muss "SMA" oder "device" sein.', REF));
+
+      // DSE_LOG_EVDATA_EMPTY: eventData must be null or empty SEQUENCE (0x30 0x00)
+      const notEmpty = dseLogs.filter(l => {
+        if (!l.eventData || l.eventData.length === 0) return false;
+        if (l.eventData.length === 2 && l.eventData[0] === 0x30 && l.eventData[1] === 0x00) return false;
+        return true;
+      });
+      results.push(notEmpty.length === 0
+        ? Utils.pass('DSE_LOG_EVDATA_EMPTY', 'eventData ist leer / leere SEQUENCE', CAT,
+            `Alle ${dseLogs.length} disableSecureElement-Logs: eventData korrekt leer.`, '', REF)
+        : Utils.fail('DSE_LOG_EVDATA_EMPTY', 'eventData ist leer / leere SEQUENCE', CAT,
+            `${notEmpty.length} Logs haben nicht-leere eventData: ${notEmpty.map(l=>l._filename).join(', ')}`,
+            'eventData muss leer oder eine leere SEQUENCE (0x30 0x00) sein.', REF));
+
+      // DSE_FINAL_LOG: disableSecureElement must have highest signatureCounter
+      const maxDseCtr = Math.max(...dseLogs.map(l=>l.signatureCounter||0));
+      results.push(maxDseCtr === maxCtr
+        ? Utils.pass('DSE_FINAL_LOG', 'disableSecureElement ist letzter Log-Eintrag', CAT,
+            `disableSecureElement (Ctr=${maxDseCtr}) ist der Log mit dem höchsten Zählerstand.`, '', REF)
+        : Utils.fail('DSE_FINAL_LOG', 'disableSecureElement ist letzter Log-Eintrag', CAT,
+            `disableSecureElement (Ctr=${maxDseCtr}) ist nicht der letzte Eintrag (Max-Ctr=${maxCtr}). Es gibt ${allLogs.filter(l=>(l.signatureCounter||0)>maxDseCtr).length} spätere Log(s).`,
+            'Nach disableSecureElement dürfen keine weiteren Log-Einträge folgen.', REF));
     }
 
-    // SDE (updateDescription)
-    makeEvtChecks(results, sysLogs, 'updateDescription', [
-      ['SDE_LOG_PRESENT','updateDescription-Log vorhanden'],
-      ['SDE_LOG_EVTYPE','eventType=updateDescription'],
-      ['SDE_LOG_EVORIGIN','eventOrigin korrekt'],
-      ['SDE_LOG_NEWDESC','neue Beschreibung in eventData'],
-      ['SDE_INFO_CSV_PRESENT','info.csv nach Beschreibungsupdate'],
-      ['SDE_INFO_DESC','neue Beschreibung in info.csv'],
-    ], CAT);
+    // ── UDD (updateSoftware) ──────────────────────────────────────────────
+    const uddAll = sysLogs.filter(l=>l.eventType==='updateSoftware');
+    if (uddAll.length === 0) {
+      ['UDD_LOG_START_PRESENT','UDD_LOG_COMP_PRESENT','UDD_LOG_EVTYPE_START','UDD_LOG_EVTYPE_COMP',
+       'UDD_EVDATA_ASN1','UDD_COMP_NAMES','UDD_OUTCOME_VALID','UDD_OUTCOME_SUCCESS_NO_REASON','UDD_NO_USER_EXTERNAL'].forEach(id =>
+        results.push(Utils.skip(id, id, CAT, 'Keine updateSoftware-Logs.', '', REF)));
+    } else {
+      // Parse eventData of each UDD log to classify start vs completed
+      const VALID_OUTCOMES = ['updateSuccessful','updateFailed'];
+      const VALID_COMPONENTS = ['device','storage','integration-interface','CSP','SMA'];
 
-    // STE (selfTest)
-    makeEvtChecks(results, sysLogs, 'selfTest', [
-      ['STE_LOG_PRESENT','selfTest-Log vorhanden'],
-      ['STE_LOG_EVTYPE','eventType=selfTest'],
-      ['STE_LOG_EVORIGIN','eventOrigin korrekt'],
-      ['STE_EVDATA_STRUCT','eventData-Struktur korrekt'],
-      ['STE_EVDATA_CONSISTENT','eventData konsistent'],
-      ['STE_EVDATA_MATCH_API','eventData stimmt mit API-Rückgabe überein'],
-    ], CAT);
+      const uddParsed = uddAll.map(l => {
+        const p = parseEvtData(l);
+        let phase = null, componentName = null, updateOutcome = null, hasReasonForFailure = false, hasUserTrigger = !!l.eventTriggeredByUser;
+        if (p.kids.length > 0) {
+          // UpdateDeviceStartEventData: SEQUENCE { componentName UTF8String, ... }
+          // UpdateDeviceCompletedEventData: SEQUENCE { componentName, updateOutcome ENUM, [reasonForFailure], ... }
+          const strKid = p.kids.find(k=>[0x0C,0x13,0x16,0x1A,0x1B].includes(k.tag));
+          if (strKid) componentName = readStr(strKid);
+          const enumKid = p.kids.find(k=>k.tag===0x0A);
+          if (enumKid) {
+            let ev=0; for(const b of enumKid.value) ev=ev*256+b;
+            updateOutcome = ev===0 ? 'updateSuccessful' : ev===1 ? 'updateFailed' : `ENUM:${ev}`;
+            phase = 'completed';
+          } else {
+            phase = 'start';
+          }
+          hasReasonForFailure = p.kids.some(k=>[0x0C,0x13,0x16,0x1A,0x1B].includes(k.tag) && p.kids.indexOf(k) > 0);
+        }
+        return { log: l, phase, componentName, updateOutcome, hasReasonForFailure, hasUserTrigger, parseError: p.error };
+      });
+
+      const uddStart = uddParsed.filter(u=>u.phase==='start');
+      const uddComp  = uddParsed.filter(u=>u.phase==='completed');
+
+      results.push(uddStart.length > 0
+        ? Utils.pass('UDD_LOG_START_PRESENT', 'updateSoftware-Start-Log vorhanden', CAT,
+            `${uddStart.length} updateSoftware-Start-Log(s) gefunden.`, '', REF)
+        : Utils.warn('UDD_LOG_START_PRESENT', 'updateSoftware-Start-Log vorhanden', CAT,
+            `${uddAll.length} updateSoftware-Logs, aber kein Start-Log erkannt (eventData-Parsing: kein ENUM ohne updateOutcome).`, '', REF));
+
+      results.push(uddComp.length > 0
+        ? Utils.pass('UDD_LOG_COMP_PRESENT', 'updateSoftware-Completed-Log vorhanden', CAT,
+            `${uddComp.length} updateSoftware-Completed-Log(s) gefunden.`, '', REF)
+        : Utils.warn('UDD_LOG_COMP_PRESENT', 'updateSoftware-Completed-Log vorhanden', CAT,
+            `${uddAll.length} updateSoftware-Logs, aber kein Completed-Log erkannt (erwartet: eventData mit updateOutcome ENUM).`, '', REF));
+
+      results.push(Utils.pass('UDD_LOG_EVTYPE_START', 'eventType = updateSoftware für Start-Logs', CAT,
+        `Alle ${uddAll.length} Logs haben eventType = "updateSoftware".`, '', REF));
+      results.push(Utils.pass('UDD_LOG_EVTYPE_COMP', 'eventType = updateSoftware für Completed-Logs', CAT,
+        `Alle ${uddAll.length} Logs haben eventType = "updateSoftware".`, '', REF));
+
+      // UDD_EVDATA_ASN1
+      const asn1Fails = uddParsed.filter(u=>u.parseError);
+      results.push(asn1Fails.length === 0
+        ? Utils.pass('UDD_EVDATA_ASN1', 'eventData ist gültige ASN.1-Struktur', CAT,
+            `Alle ${uddAll.length} updateSoftware-Logs: eventData als ASN.1 SEQUENCE parsbar.`, '', REF)
+        : Utils.fail('UDD_EVDATA_ASN1', 'eventData ist gültige ASN.1-Struktur', CAT,
+            `${asn1Fails.length} Logs mit ASN.1-Parsing-Fehler: ${asn1Fails.map(u=>`${u.log._filename}: ${u.parseError}`).join('; ')}`,
+            'eventData muss eine gültige ASN.1-SEQUENCE sein.', REF));
+
+      // UDD_COMP_NAMES
+      const badComp = uddParsed.filter(u=>u.componentName && !VALID_COMPONENTS.includes(u.componentName));
+      const noComp  = uddParsed.filter(u=>!u.componentName && !u.parseError);
+      if (noComp.length > 0) {
+        results.push(Utils.warn('UDD_COMP_NAMES', 'componentName ist gültiger Komponentenbezeichner', CAT,
+          `${noComp.length} Logs ohne erkennbaren componentName.`, `Erlaubt: ${VALID_COMPONENTS.join(', ')}`, REF));
+      } else {
+        results.push(badComp.length === 0
+          ? Utils.pass('UDD_COMP_NAMES', 'componentName ist gültiger Komponentenbezeichner', CAT,
+              `Alle geparsten Logs: componentName ∈ {${VALID_COMPONENTS.join(', ')}}.`, '', REF)
+          : Utils.fail('UDD_COMP_NAMES', 'componentName ist gültiger Komponentenbezeichner', CAT,
+              `${badComp.length} Logs mit ungültigem componentName: ${badComp.map(u=>`${u.log._filename}→"${u.componentName}"`).join(', ')}`,
+              `Erlaubt: ${VALID_COMPONENTS.join(', ')}`, REF));
+      }
+
+      // UDD_OUTCOME_VALID
+      const badOutcome = uddComp.filter(u=>!VALID_OUTCOMES.includes(u.updateOutcome||''));
+      results.push(uddComp.length === 0
+        ? Utils.skip('UDD_OUTCOME_VALID', 'updateOutcome hat gültigen Wert', CAT, 'Keine Completed-Logs.', '', REF)
+        : badOutcome.length === 0
+          ? Utils.pass('UDD_OUTCOME_VALID', 'updateOutcome hat gültigen Wert', CAT,
+              `Alle ${uddComp.length} Completed-Logs: updateOutcome ∈ {${VALID_OUTCOMES.join(', ')}}.`, '', REF)
+          : Utils.fail('UDD_OUTCOME_VALID', 'updateOutcome hat gültigen Wert', CAT,
+              `${badOutcome.length} Logs mit ungültigem updateOutcome: ${badOutcome.map(u=>`${u.log._filename}→"${u.updateOutcome}"`).join(', ')}`,
+              `Erlaubt: ${VALID_OUTCOMES.join(', ')}`, REF));
+
+      // UDD_OUTCOME_SUCCESS_NO_REASON: success → no reasonForFailure
+      const successWithReason = uddComp.filter(u=>u.updateOutcome==='updateSuccessful' && u.hasReasonForFailure);
+      results.push(successWithReason.length === 0
+        ? Utils.pass('UDD_OUTCOME_SUCCESS_NO_REASON', 'Kein reasonForFailure bei erfolgreichem Update', CAT,
+            'Keine erfolgreichen Updates mit reasonForFailure gefunden.', '', REF)
+        : Utils.fail('UDD_OUTCOME_SUCCESS_NO_REASON', 'Kein reasonForFailure bei erfolgreichem Update', CAT,
+            `${successWithReason.length} erfolgreiche Updates mit reasonForFailure: ${successWithReason.map(u=>u.log._filename).join(', ')}`,
+            'Bei updateOutcome=updateSuccessful darf reasonForFailure nicht vorhanden sein.', REF));
+
+      // UDD_NO_USER_EXTERNAL: external updates (eventOrigin != integration-interface) must not have eventTriggeredByUser
+      const externalWithUser = uddAll.filter(l=>l.eventOrigin!=='integration-interface' && l.eventTriggeredByUser);
+      results.push(externalWithUser.length === 0
+        ? Utils.pass('UDD_NO_USER_EXTERNAL', 'Kein eventTriggeredByUser bei externem Update', CAT,
+            'Keine externen Updates (eventOrigin ≠ integration-interface) mit eventTriggeredByUser.', '', REF)
+        : Utils.fail('UDD_NO_USER_EXTERNAL', 'Kein eventTriggeredByUser bei externem Update', CAT,
+            `${externalWithUser.length} externe Updates mit eventTriggeredByUser: ${externalWithUser.map(l=>l._filename).join(', ')}`,
+            'Bei externem Update (eventOrigin ≠ integration-interface) darf eventTriggeredByUser nicht gesetzt sein.', REF));
+    }
+
+    // ── SDE (updateDescription / setDescription) ──────────────────────────
+    const sdeLogs = sysLogs.filter(l=>l.eventType==='updateDescription'||l.eventType==='setDescription');
+    if (sdeLogs.length === 0) {
+      ['SDE_LOG_PRESENT','SDE_LOG_EVTYPE','SDE_LOG_EVORIGIN','SDE_LOG_NEWDESC','SDE_INFO_CSV_PRESENT','SDE_INFO_DESC'].forEach(id =>
+        results.push(Utils.skip(id, id, CAT, 'Keine setDescription/updateDescription-Logs.', '', REF)));
+    } else {
+      results.push(Utils.pass('SDE_LOG_PRESENT', 'setDescription-Log vorhanden', CAT,
+        `${sdeLogs.length} setDescription-Log(s) gefunden.`, '', REF));
+
+      results.push(Utils.pass('SDE_LOG_EVTYPE', 'eventType = setDescription / updateDescription', CAT,
+        `Alle ${sdeLogs.length} Logs haben eventType = "${[...new Set(sdeLogs.map(l=>l.eventType))].join(' / ')}".`, '', REF));
+
+      // SDE_LOG_EVORIGIN: must be integration-interface
+      const badSdeOrigin = sdeLogs.filter(l=>l.eventOrigin!=='integration-interface');
+      results.push(badSdeOrigin.length === 0
+        ? Utils.pass('SDE_LOG_EVORIGIN', 'eventOrigin = integration-interface', CAT,
+            `Alle ${sdeLogs.length} Logs: eventOrigin = "integration-interface".`, '', REF)
+        : Utils.fail('SDE_LOG_EVORIGIN', 'eventOrigin = integration-interface', CAT,
+            `${badSdeOrigin.length} Logs mit falschem eventOrigin: ${badSdeOrigin.map(l=>`${l._filename}→"${l.eventOrigin||'(fehlt)'}"`).join(', ')}`,
+            'eventOrigin muss "integration-interface" sein.', REF));
+
+      // SDE_LOG_NEWDESC: parse eventData to get newDeviceDescription
+      const latestSde = sdeLogs.reduce((m,l)=>(l.signatureCounter||0)>(m.signatureCounter||0)?l:m);
+      const sdeP = parseEvtData(latestSde);
+      let latestDesc = null;
+      if (sdeP.kids.length > 0) {
+        const strKid = sdeP.kids.find(k=>[0x0C,0x13,0x16,0x1A,0x1B].includes(k.tag));
+        if (strKid) latestDesc = readStr(strKid);
+      }
+      results.push(latestDesc !== null
+        ? Utils.pass('SDE_LOG_NEWDESC', 'newDeviceDescription in eventData vorhanden', CAT,
+            `Letzte setDescription (${latestSde._filename}): newDeviceDescription = "${latestDesc}"`, '', REF)
+        : Utils.warn('SDE_LOG_NEWDESC', 'newDeviceDescription in eventData vorhanden', CAT,
+            `eventData-Parsing für ${latestSde._filename} lieferte keinen Beschreibungsstring${sdeP.error?` (Fehler: ${sdeP.error})`:''}`,
+            'eventData muss UTF8String mit neuer Gerätebeschreibung enthalten.', REF));
+
+      // SDE_INFO_CSV_PRESENT: info.csv must exist
+      const hasInfoCsv = !!(infoRows || (tarResult && tarResult.files.has('info.csv')));
+      results.push(hasInfoCsv
+        ? Utils.pass('SDE_INFO_CSV_PRESENT', 'info.csv im TAR vorhanden', CAT,
+            'info.csv ist im Archiv enthalten.', '', REF)
+        : Utils.fail('SDE_INFO_CSV_PRESENT', 'info.csv im TAR vorhanden', CAT,
+            'info.csv fehlt im Archiv. Nach setDescription muss info.csv aktualisiert enthalten sein.',
+            'info.csv ist nach setDescription Pflicht.', REF));
+
+      // SDE_INFO_DESC: description in info.csv must match
+      if (!hasInfoCsv || latestDesc === null) {
+        results.push(Utils.skip('SDE_INFO_DESC', 'description in info.csv stimmt mit setDescription überein', CAT,
+          'Kein info.csv oder keine Beschreibung aus eventData extrahierbar.', '', REF));
+      } else {
+        const csvDesc = infoRows ? infoRows.description : null;
+        if (csvDesc === null) {
+          results.push(Utils.warn('SDE_INFO_DESC', 'description in info.csv stimmt mit setDescription überein', CAT,
+            'info.csv enthält kein description-Feld.', '', REF));
+        } else {
+          results.push(csvDesc === latestDesc
+            ? Utils.pass('SDE_INFO_DESC', 'description in info.csv stimmt mit setDescription überein', CAT,
+                `info.csv description = "${csvDesc}" stimmt mit letzter setDescription überein.`, '', REF)
+            : Utils.fail('SDE_INFO_DESC', 'description in info.csv stimmt mit setDescription überein', CAT,
+                `Abweichung: info.csv description = "${csvDesc}", letzte setDescription = "${latestDesc}"`,
+                'description-Feld in info.csv muss mit dem zuletzt gesetzten Wert übereinstimmen.', REF));
+        }
+      }
+    }
+
+    // ── STE (selfTest) ────────────────────────────────────────────────────
+    const steLogs = sysLogs.filter(l=>l.eventType==='selfTest');
+    if (steLogs.length === 0) {
+      ['STE_LOG_PRESENT','STE_LOG_EVTYPE','STE_LOG_EVORIGIN','STE_EVDATA_STRUCT','STE_EVDATA_CONSISTENT','STE_EVDATA_MATCH_API'].forEach(id =>
+        results.push(Utils.skip(id, id, CAT, 'Keine selfTest-Logs.', '', REF)));
+    } else {
+      results.push(Utils.pass('STE_LOG_PRESENT', 'selfTest-Log vorhanden', CAT,
+        `${steLogs.length} selfTest-Log(s) gefunden.`, '', REF));
+
+      results.push(Utils.pass('STE_LOG_EVTYPE', 'eventType = selfTest', CAT,
+        `Alle ${steLogs.length} Logs haben eventType = "selfTest".`, '', REF));
+
+      // STE_LOG_EVORIGIN: selfTest is valid from device, SMA, CSP, integration-interface
+      const validSteOrigins = ['device','SMA','CSP','integration-interface'];
+      const badSteOrigin = steLogs.filter(l=>l.eventOrigin && !validSteOrigins.includes(l.eventOrigin));
+      results.push(badSteOrigin.length === 0
+        ? Utils.pass('STE_LOG_EVORIGIN', `eventOrigin ∈ {${validSteOrigins.join(', ')}}`, CAT,
+            `Alle ${steLogs.length} selfTest-Logs: eventOrigin korrekt.`, '', REF)
+        : Utils.fail('STE_LOG_EVORIGIN', `eventOrigin ∈ {${validSteOrigins.join(', ')}}`, CAT,
+            `${badSteOrigin.length} Logs mit ungültigem eventOrigin: ${badSteOrigin.map(l=>`${l._filename}→"${l.eventOrigin}"`).join(', ')}`,
+            `eventOrigin muss ∈ {${validSteOrigins.join(', ')}} sein.`, REF));
+
+      // STE_EVDATA_STRUCT: parse SelfTestEventData
+      // SelfTestEventData ::= SEQUENCE { allTestsArePositive BOOLEAN, selfTestResults SEQUENCE OF SEQUENCE { UTF8String, BOOLEAN } }
+      let structOk = 0, structFail = [], consistent = 0, inconsistent = [];
+      for (const l of steLogs) {
+        const p = parseEvtData(l);
+        if (p.error || p.isEmpty || p.kids.length < 1) {
+          structFail.push(`${l._filename}: ${p.error||'Keine Felder'}`);
+          continue;
+        }
+        const boolKid = p.kids.find(k=>k.tag===0x01);
+        const seqKid  = p.kids.find(k=>k.tag===0x30);
+        if (!boolKid) { structFail.push(`${l._filename}: allTestsArePositive fehlt`); continue; }
+        structOk++;
+        // STE_EVDATA_CONSISTENT: allTestsArePositive must match individual results
+        const allPositive = boolKid.value && boolKid.value[0] !== 0;
+        if (seqKid) {
+          const tests = ASN1.parseChildren(seqKid.value, 0, seqKid.value.length);
+          const indivResults = tests.map(t=>{
+            const tk = ASN1.parseChildren(t.value, 0, t.value.length);
+            const b = tk.find(k=>k.tag===0x01);
+            return b ? (b.value[0]!==0) : null;
+          }).filter(v=>v!==null);
+          const allIndivOk = indivResults.every(v=>v===true);
+          if (allPositive === allIndivOk) consistent++;
+          else inconsistent.push(`${l._filename}: allTestsArePositive=${allPositive}, Einzelergebnisse=${indivResults.map(v=>v?'OK':'FAIL').join(',')}`);
+        } else {
+          consistent++; // no subtests, just flag → consistent by definition
+        }
+      }
+      results.push(structFail.length === 0
+        ? Utils.pass('STE_EVDATA_STRUCT', 'SelfTestEventData-Struktur vorhanden', CAT,
+            `Alle ${steLogs.length} selfTest-Logs: SelfTestEventData-Struktur (BOOLEAN + SEQUENCE) korrekt.`, '', REF)
+        : Utils.fail('STE_EVDATA_STRUCT', 'SelfTestEventData-Struktur vorhanden', CAT,
+            `${structFail.length} selfTest-Logs mit Strukturfehler:\n${structFail.join('\n')}`,
+            'eventData muss SelfTestEventData { allTestsArePositive BOOLEAN, selfTestResults SEQUENCE OF … } enthalten.', REF));
+
+      results.push(inconsistent.length === 0
+        ? Utils.pass('STE_EVDATA_CONSISTENT', 'allTestsArePositive konsistent mit Einzelergebnissen', CAT,
+            `Alle geparsten selfTest-Logs: allTestsArePositive stimmt mit Einzelergebnissen überein.`, '', REF)
+        : Utils.fail('STE_EVDATA_CONSISTENT', 'allTestsArePositive konsistent mit Einzelergebnissen', CAT,
+            `${inconsistent.length} inkonsistente selfTest-Logs:\n${inconsistent.join('\n')}`,
+            'allTestsArePositive muss TRUE sein, genau dann wenn alle Einzeltests positiv sind.', REF));
+
+      results.push(Utils.info('STE_EVDATA_MATCH_API', 'selfTestResults stimmt mit API-Rückgabewert überein', CAT,
+        `${steLogs.length} selfTest-Logs vorhanden. Abgleich mit dem live API-Rückgabewert ist nicht möglich (kein Laufzeit-Kontext).`,
+        'selfTestResults im Log muss identisch mit dem API-Rückgabewert des Aufrufs sein.', REF));
+    }
 
     return results;
   }
