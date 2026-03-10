@@ -3,7 +3,7 @@
 
 window.UIRenderer = (function () {
 
-  const ICON  = { PASS: '✓', FAIL: '✗', WARN: '⚠', INFO: 'ℹ', SKIP: '–' };
+  const ICON = { PASS: '✓', FAIL: '✗', WARN: '⚠', INFO: 'ℹ', SKIP: '–' };
   const LABEL = { PASS: 'KONFORM', FAIL: 'NICHT KONFORM', WARN: 'BEDINGT KONFORM', INFO: 'INFO' };
 
   // Rules database (loaded async from rules.json)
@@ -12,7 +12,7 @@ window.UIRenderer = (function () {
     fetch('rules.json')
       .then(r => r.json())
       .then(db => { _rulesDB = db; })
-      .catch(() => {});
+      .catch(() => { });
   }
   loadRulesDB();
 
@@ -27,7 +27,7 @@ window.UIRenderer = (function () {
     container.innerHTML = '';
     const el = Utils.cloneTemplate('tpl-analyzing');
     _setId(el, 'analyzing-text', `Analysiere: ${filename || '…'}`);
-    _setId(el, 'analyzing-sub',  'Bitte warten…');
+    _setId(el, 'analyzing-sub', 'Bitte warten…');
     container.appendChild(el);
   }
 
@@ -35,23 +35,23 @@ window.UIRenderer = (function () {
     const { stats, byCategory, parsedLogs, parsedCerts, infoRows, tarResult, perFileResults, perCertResults } = runResult;
     container.innerHTML = '';
     const el = Utils.cloneTemplate('tpl-overview');
-    const v  = stats.verdict;
+    const v = stats.verdict;
 
     const banner = el.querySelector('#ov-verdict');
     if (banner) banner.classList.add(v === 'FAIL' ? 'verdict-fail' : v === 'WARN' ? 'verdict-warn' : 'verdict-pass');
 
-    _setId(el, 'ov-verdict-icon',  ICON[v] || '?');
+    _setId(el, 'ov-verdict-icon', ICON[v] || '?');
     _setId(el, 'ov-verdict-title', LABEL[v] || v);
-    _setId(el, 'ov-verdict-sub',   `${stats.fail} Fehler · ${stats.warn} Warnungen · ${stats.pass} bestanden`);
-    _setId(el, 'ov-verdict-meta',  `${stats.total} Prüfungen · ${stats.logCount} Logs · ${stats.certCount} Zertifikate`);
+    _setId(el, 'ov-verdict-sub', `${stats.fail} Fehler · ${stats.warn} Warnungen · ${stats.pass} bestanden`);
+    _setId(el, 'ov-verdict-meta', `${stats.total} Prüfungen · ${stats.logCount} Logs · ${stats.certCount} Zertifikate`);
     _setId(el, 'ov-sub', archiveName || '');
 
     _setId(el, 'stat-total', stats.total);
-    _setId(el, 'stat-pass',  stats.pass);
-    _setId(el, 'stat-fail',  stats.fail);
-    _setId(el, 'stat-warn',  stats.warn);
-    _setId(el, 'stat-info',  stats.info);
-    _setId(el, 'stat-skip',  stats.skip);
+    _setId(el, 'stat-pass', stats.pass);
+    _setId(el, 'stat-fail', stats.fail);
+    _setId(el, 'stat-warn', stats.warn);
+    _setId(el, 'stat-info', stats.info);
+    _setId(el, 'stat-skip', stats.skip);
 
     const t = stats.total || 1;
     _barW(el, 'bar-pass', stats.pass / t * 100);
@@ -61,10 +61,10 @@ window.UIRenderer = (function () {
     _barW(el, 'bar-skip', stats.skip / t * 100);
 
     // Count log types
-    const sysLogs   = (parsedLogs||[]).filter(l => l.logType === 'sys');
-    const txnLogs   = (parsedLogs||[]).filter(l => l.logType === 'txn');
-    const auditLogs = (parsedLogs||[]).filter(l => l.logType === 'audit');
-    const certCount = (parsedCerts||[]).length;
+    const sysLogs = (parsedLogs || []).filter(l => l.logType === 'sys');
+    const txnLogs = (parsedLogs || []).filter(l => l.logType === 'txn');
+    const auditLogs = (parsedLogs || []).filter(l => l.logType === 'audit');
+    const certCount = (parsedCerts || []).length;
 
     _fillMeta(el, '#meta-archive', [
       ['Dateiname', archiveName || '–'],
@@ -72,7 +72,7 @@ window.UIRenderer = (function () {
       ['Parse-Fehler', stats.parseErrors],
     ]);
     _fillMeta(el, '#meta-files', [
-      ['Logs gesamt', (parsedLogs||[]).length],
+      ['Logs gesamt', (parsedLogs || []).length],
       ['SystemLog', sysLogs.length],
       ['TransactionLog', txnLogs.length],
       ['AuditLog', auditLogs.length],
@@ -138,11 +138,10 @@ window.UIRenderer = (function () {
         <span style="color:var(--text-muted)">– ${ns}</span>
       </div>
       <div class="filter-bar" style="margin-top:12px;flex-wrap:wrap;gap:6px">
-        ${['all','FAIL','WARN','PASS','INFO','SKIP'].map(f =>
-          `<button class="filter-btn${filterStatus===f?' active':''}" onclick="app.setAllTestsFilter('${f}',this)">${
-            {all:'Alle',FAIL:'✗ Fehler',WARN:'⚠ Warnung',PASS:'✓ OK',INFO:'ℹ Info',SKIP:'– Skipped'}[f]
-          }</button>`
-        ).join('')}
+        ${['all', 'FAIL', 'WARN', 'PASS', 'INFO', 'SKIP'].map(f =>
+      `<button class="filter-btn${filterStatus === f ? ' active' : ''}" onclick="app.setAllTestsFilter('${f}',this)">${{ all: 'Alle', FAIL: '✗ Fehler', WARN: '⚠ Warnung', PASS: '✓ OK', INFO: 'ℹ Info', SKIP: '– Skipped' }[f]
+      }</button>`
+    ).join('')}
       </div>`;
     wrap.appendChild(hdr);
 
@@ -162,7 +161,7 @@ window.UIRenderer = (function () {
         if (r._cat !== lastCat) {
           lastCat = r._cat;
           const catHdr = document.createElement('div');
-          catHdr.style.cssText = 'padding:8px 16px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);background:var(--sidebar-bg);border-top:1px solid var(--border-light);cursor:pointer';
+          catHdr.style.cssText = 'margin-top: 25px;padding:8px 16px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);background:var(--sidebar-bg);border-top:1px solid var(--border-light);cursor:pointer';
           catHdr.textContent = r._cat;
           catHdr.onclick = () => app.navigateTo('cat:' + r._cat);
           card.appendChild(catHdr);
@@ -176,30 +175,30 @@ window.UIRenderer = (function () {
 
   function _buildFilesSection(container, runResult) {
     const { parsedLogs, parsedCerts, tarResult, perFileResults, perCertResults } = runResult;
-    const sysLogs   = (parsedLogs||[]).filter(l => l.logType === 'sys');
-    const txnLogs   = (parsedLogs||[]).filter(l => l.logType === 'txn');
-    const auditLogs = (parsedLogs||[]).filter(l => l.logType === 'audit');
-    const certCount = (parsedCerts||[]).length;
+    const sysLogs = (parsedLogs || []).filter(l => l.logType === 'sys');
+    const txnLogs = (parsedLogs || []).filter(l => l.logType === 'txn');
+    const auditLogs = (parsedLogs || []).filter(l => l.logType === 'audit');
+    const certCount = (parsedCerts || []).length;
 
-    const allFiles = [...tarResult.files.entries()].sort((a,b) => a[0].localeCompare(b[0]));
-    const evtTypes  = [...new Set(sysLogs.map(l => l.eventType).filter(Boolean))].sort();
-    const opTypes   = [...new Set(txnLogs.map(l => l.operationType).filter(Boolean))].sort();
+    const allFiles = [...tarResult.files.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    const evtTypes = [...new Set(sysLogs.map(l => l.eventType).filter(Boolean))].sort();
+    const opTypes = [...new Set(txnLogs.map(l => l.operationType).filter(Boolean))].sort();
     const clientIds = [...new Set(txnLogs.map(l => l.clientId).filter(Boolean))].sort();
 
     const fileMeta = allFiles.map(([name, entry]) => {
-      const ext     = name.split('.').pop().toLowerCase();
-      const isLog   = ext === 'log';
-      const isCert  = ['pem','cer','crt','cert','der'].includes(ext);
-      const basename= name.split('/').pop();
-      const logEntry= isLog  ? (parsedLogs||[]).find(l => l._filename === basename) : null;
-      const certEntry= isCert ? (parsedCerts||[]).find(c => c._filename === basename) : null;
+      const ext = name.split('.').pop().toLowerCase();
+      const isLog = ext === 'log';
+      const isCert = ['pem', 'cer', 'crt', 'cert', 'der'].includes(ext);
+      const basename = name.split('/').pop();
+      const logEntry = isLog ? (parsedLogs || []).find(l => l._filename === basename) : null;
+      const certEntry = isCert ? (parsedCerts || []).find(c => c._filename === basename) : null;
       const logType = logEntry?.logType || null;
-      const perFile = isLog  ? (perFileResults?.[basename] || perFileResults?.[name] || []) : null;
+      const perFile = isLog ? (perFileResults?.[basename] || perFileResults?.[name] || []) : null;
       const perCert = isCert ? (perCertResults?.[basename] || perCertResults?.[name] || []) : null;
-      const rs      = perFile || perCert || [];
-      const nf      = rs.filter(r => (r.status||'').toUpperCase() === 'FAIL').length;
-      const nw      = rs.filter(r => (r.status||'').toUpperCase() === 'WARN').length;
-      const np      = rs.filter(r => (r.status||'').toUpperCase() === 'PASS').length;
+      const rs = perFile || perCert || [];
+      const nf = rs.filter(r => (r.status || '').toUpperCase() === 'FAIL').length;
+      const nw = rs.filter(r => (r.status || '').toUpperCase() === 'WARN').length;
+      const np = rs.filter(r => (r.status || '').toUpperCase() === 'PASS').length;
       return { name, entry, ext, isLog, isCert, basename, logEntry, certEntry, logType, rs, nf, nw, np };
     });
 
@@ -211,10 +210,10 @@ window.UIRenderer = (function () {
         ${allFiles.length} Dateien
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-        ${sysLogs.length   ? `<span class="ftype-stat" style="background:#dbeafe;color:#1e40af">${sysLogs.length} SystemLog</span>` : ''}
-        ${txnLogs.length   ? `<span class="ftype-stat" style="background:#f3e8ff;color:#6b21a8">${txnLogs.length} TransactionLog</span>` : ''}
+        ${sysLogs.length ? `<span class="ftype-stat" style="background:#dbeafe;color:#1e40af">${sysLogs.length} SystemLog</span>` : ''}
+        ${txnLogs.length ? `<span class="ftype-stat" style="background:#f3e8ff;color:#6b21a8">${txnLogs.length} TransactionLog</span>` : ''}
         ${auditLogs.length ? `<span class="ftype-stat" style="background:#fef3c7;color:#92400e">${auditLogs.length} AuditLog</span>` : ''}
-        ${certCount        ? `<span class="ftype-stat" style="background:#dcfce7;color:#166534">${certCount} Zertifikat${certCount!==1?'e':''}</span>` : ''}
+        ${certCount ? `<span class="ftype-stat" style="background:#dcfce7;color:#166534">${certCount} Zertifikat${certCount !== 1 ? 'e' : ''}</span>` : ''}
       </div>`;
     container.appendChild(hdr);
 
@@ -223,11 +222,11 @@ window.UIRenderer = (function () {
     filterBar.className = 'file-filter-bar';
 
     const typeFilters = [
-      { key: 'all',   label: 'Alle', count: allFiles.length },
-      { key: 'sys',   label: 'SystemLog',      count: sysLogs.length,   show: sysLogs.length > 0 },
-      { key: 'txn',   label: 'TransactionLog', count: txnLogs.length,   show: txnLogs.length > 0 },
-      { key: 'audit', label: 'AuditLog',        count: auditLogs.length, show: auditLogs.length > 0 },
-      { key: 'cert',  label: 'Zertifikate',     count: certCount,        show: certCount > 0 },
+      { key: 'all', label: 'Alle', count: allFiles.length },
+      { key: 'sys', label: 'SystemLog', count: sysLogs.length, show: sysLogs.length > 0 },
+      { key: 'txn', label: 'TransactionLog', count: txnLogs.length, show: txnLogs.length > 0 },
+      { key: 'audit', label: 'AuditLog', count: auditLogs.length, show: auditLogs.length > 0 },
+      { key: 'cert', label: 'Zertifikate', count: certCount, show: certCount > 0 },
     ].filter(f => f.show !== false);
 
     const typeRow = document.createElement('div');
@@ -317,23 +316,23 @@ window.UIRenderer = (function () {
     const rows = fileMeta.map(m => {
       const row = document.createElement('div');
       row.className = 'tar-file-row tar-file-row-v2';
-      row.dataset.typeKey    = m.logType || (m.isCert ? 'cert' : 'other');
+      row.dataset.typeKey = m.logType || (m.isCert ? 'cert' : 'other');
       row.dataset.nameSearch = m.name.toLowerCase();
       if (m.nf > 0) { row.style.borderLeft = '3px solid var(--fail)'; row.style.background = 'rgba(220,38,38,.04)'; }
       else if (m.nw > 0) { row.style.borderLeft = '3px solid var(--warn)'; row.style.background = 'rgba(217,119,6,.04)'; }
       else if (m.np > 0) { row.style.borderLeft = '3px solid var(--pass)'; }
-      if (m.isLog && m.logEntry)  { row.dataset.logFile  = m.name; row.style.cursor = 'pointer'; row.title = 'Klicken für Datei-Details'; }
-      if (m.isCert && m.certEntry){ row.dataset.certFile = m.name; row.style.cursor = 'pointer'; row.title = 'Klicken für Zertifikat-Details'; }
+      if (m.isLog && m.logEntry) { row.dataset.logFile = m.name; row.style.cursor = 'pointer'; row.title = 'Klicken für Datei-Details'; }
+      if (m.isCert && m.certEntry) { row.dataset.certFile = m.name; row.style.cursor = 'pointer'; row.title = 'Klicken für Zertifikat-Details'; }
       if (m.logEntry) {
-        if (m.logEntry.eventType)       row.dataset.evtType  = m.logEntry.eventType;
-        if (m.logEntry.operationType)   row.dataset.opType   = m.logEntry.operationType;
-        if (m.logEntry.clientId)        row.dataset.clientId = String(m.logEntry.clientId);
+        if (m.logEntry.eventType) row.dataset.evtType = m.logEntry.eventType;
+        if (m.logEntry.operationType) row.dataset.opType = m.logEntry.operationType;
+        if (m.logEntry.clientId) row.dataset.clientId = String(m.logEntry.clientId);
         if (m.logEntry.transactionNumber != null) row.dataset.txnNum = String(m.logEntry.transactionNumber);
       }
       const ltMap = {
-        sys:   { label:'SystemLog',      col:'#1e40af', bg:'#dbeafe' },
-        txn:   { label:'TransactionLog', col:'#6b21a8', bg:'#f3e8ff' },
-        audit: { label:'AuditLog',       col:'#92400e', bg:'#fef3c7' },
+        sys: { label: 'SystemLog', col: '#1e40af', bg: '#dbeafe' },
+        txn: { label: 'TransactionLog', col: '#6b21a8', bg: '#f3e8ff' },
+        audit: { label: 'AuditLog', col: '#92400e', bg: '#fef3c7' },
       };
       const badge = (col, bg, txt) => `<span style="padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;color:${col};background:${bg};border:1px solid ${col}40;white-space:nowrap;flex-shrink:0">${txt}</span>`;
       let logTypeBadge = '';
@@ -341,8 +340,8 @@ window.UIRenderer = (function () {
         const { label, col, bg } = ltMap[m.logType];
         logTypeBadge = badge(col, bg, label);
         if (m.logType === 'txn' && m.logEntry?.operationType) {
-          const opShort = {startTransaction:'Start', updateTransaction:'Update', finishTransaction:'Finish'}[m.logEntry.operationType] || m.logEntry.operationType;
-          logTypeBadge += badge('#374151','#f3f4f6', opShort);
+          const opShort = { startTransaction: 'Start', updateTransaction: 'Update', finishTransaction: 'Finish' }[m.logEntry.operationType] || m.logEntry.operationType;
+          logTypeBadge += badge('#374151', '#f3f4f6', opShort);
         }
       }
       let certTypeBadge = '';
@@ -350,14 +349,14 @@ window.UIRenderer = (function () {
         const iKey = JSON.stringify({ CN: m.certEntry.issuerDN?.CN, O: m.certEntry.issuerDN?.O });
         const sKey = JSON.stringify({ CN: m.certEntry.subjectDN?.CN, O: m.certEntry.subjectDN?.O });
         const ct = m.certEntry.isCA === true ? (iKey === sKey ? 'root' : 'subca') : 'leaf';
-        const ctM = { root:{col:'#7c3aed',bg:'#f5f3ff',lbl:'Root-CA'}, subca:{col:'#0369a1',bg:'#e0f2fe',lbl:'Sub-CA'}, leaf:{col:'#059669',bg:'#ecfdf5',lbl:'Blatt'} }[ct];
+        const ctM = { root: { col: '#7c3aed', bg: '#f5f3ff', lbl: 'Root-CA' }, subca: { col: '#0369a1', bg: '#e0f2fe', lbl: 'Sub-CA' }, leaf: { col: '#059669', bg: '#ecfdf5', lbl: 'Blatt' } }[ct];
         if (ctM) certTypeBadge = badge(ctM.col, ctM.bg, ctM.lbl);
       }
       const verdictBadge = m.rs.length > 0
         ? (m.nf > 0 ? `<span class="sb-mini sb-mini-fail">✗ ${m.nf}</span>`
           : m.nw > 0 ? `<span class="sb-mini sb-mini-warn">⚠ ${m.nw}</span>`
-          : m.np > 0 ? `<span class="sb-mini sb-mini-pass">✓</span>` : '') : '';
-      const typeClass = `ftype-${['log','pem','cer','crt','cert','csv'].includes(m.ext) ? m.ext : 'other'}`;
+            : m.np > 0 ? `<span class="sb-mini sb-mini-pass">✓</span>` : '') : '';
+      const typeClass = `ftype-${['log', 'pem', 'cer', 'crt', 'cert', 'csv'].includes(m.ext) ? m.ext : 'other'}`;
       row.innerHTML =
         `<span class="tar-fname">${_esc(m.name)}</span>` +
         `<span class="tar-ftype ${typeClass}" style="flex-shrink:0">${_esc(m.ext)}</span>` +
@@ -370,14 +369,14 @@ window.UIRenderer = (function () {
 
     let currentType = 'all', currentVerdict = '';
     const applyFilter = () => {
-      const textVal   = (filterBar.querySelector('#ff-text-search')?.value || '').toLowerCase();
-      const evtVal    = (filterBar.querySelector('#ff-evttype')?.value  || '').toLowerCase();
-      const opVal     = (filterBar.querySelector('#ff-optype')?.value   || '').toLowerCase();
-      const clientVal = (filterBar.querySelector('#ff-client')?.value   || '').toLowerCase();
-      const txnVal    = (filterBar.querySelector('#ff-txnnum')?.value   || '').toLowerCase();
+      const textVal = (filterBar.querySelector('#ff-text-search')?.value || '').toLowerCase();
+      const evtVal = (filterBar.querySelector('#ff-evttype')?.value || '').toLowerCase();
+      const opVal = (filterBar.querySelector('#ff-optype')?.value || '').toLowerCase();
+      const clientVal = (filterBar.querySelector('#ff-client')?.value || '').toLowerCase();
+      const txnVal = (filterBar.querySelector('#ff-txnnum')?.value || '').toLowerCase();
       let visible = 0;
       rows.forEach((r, idx) => {
-        const m  = fileMeta[idx];
+        const m = fileMeta[idx];
         const tk = r.dataset.typeKey || 'other';
         const name = r.dataset.nameSearch || '';
         const typeOk = currentType === 'all' || currentType === tk
@@ -386,15 +385,15 @@ window.UIRenderer = (function () {
         if (currentVerdict === 'fail' && m.nf === 0) { r.style.display = 'none'; return; }
         if (currentVerdict === 'warn' && (m.nw === 0 || m.nf > 0)) { r.style.display = 'none'; return; }
         if (textVal && !name.includes(textVal)) { r.style.display = 'none'; return; }
-        if (evtVal    && (r.dataset.evtType  || '').toLowerCase() !== evtVal)   { r.style.display = 'none'; return; }
-        if (opVal     && (r.dataset.opType   || '').toLowerCase() !== opVal)     { r.style.display = 'none'; return; }
+        if (evtVal && (r.dataset.evtType || '').toLowerCase() !== evtVal) { r.style.display = 'none'; return; }
+        if (opVal && (r.dataset.opType || '').toLowerCase() !== opVal) { r.style.display = 'none'; return; }
         if (clientVal && (r.dataset.clientId || '').toLowerCase() !== clientVal) { r.style.display = 'none'; return; }
-        if (txnVal    && !(r.dataset.txnNum  || '').toLowerCase().includes(txnVal)) { r.style.display = 'none'; return; }
+        if (txnVal && !(r.dataset.txnNum || '').toLowerCase().includes(txnVal)) { r.style.display = 'none'; return; }
         r.style.display = ''; visible++;
       });
       typeRow.querySelectorAll('.ff-type-btn').forEach(btn => {
         if (btn.dataset.typeKey === currentType) {
-          const orig  = typeFilters.find(f => f.key === currentType);
+          const orig = typeFilters.find(f => f.key === currentType);
           const total = orig?.count ?? visible;
           btn.querySelector('.ff-count').textContent = visible < total ? `${visible}/${total}` : String(total);
         }
@@ -429,13 +428,13 @@ window.UIRenderer = (function () {
     container.innerHTML = '';
     const el = Utils.cloneTemplate('tpl-category');
 
-    const fails  = catResults.filter(r => r.status === 'FAIL').length;
-    const warns  = catResults.filter(r => r.status === 'WARN').length;
+    const fails = catResults.filter(r => r.status === 'FAIL').length;
+    const warns = catResults.filter(r => r.status === 'WARN').length;
     const passes = catResults.filter(r => r.status === 'PASS').length;
-    const skips  = catResults.filter(r => r.status === 'SKIP').length;
-    const infos  = catResults.filter(r => r.status === 'INFO').length;
+    const skips = catResults.filter(r => r.status === 'SKIP').length;
+    const infos = catResults.filter(r => r.status === 'INFO').length;
 
-    _setId(el, 'cp-num',   catIndex != null ? `Kategorie ${catIndex} von 35` : '');
+    _setId(el, 'cp-num', catIndex != null ? `Kategorie ${catIndex} von 35` : '');
     _setId(el, 'cp-title', catName);
     _setId(el, 'cp-count',
       `${catResults.length} Prüfungen · ✗ ${fails} · ⚠ ${warns} · ✓ ${passes} · ℹ ${infos} · – ${skips}`);
@@ -478,13 +477,13 @@ window.UIRenderer = (function () {
       el.dataset.cat = name;
       if (name === activeCat) el.classList.add('active');
       el.style.borderLeft = `3px solid var(--${verdict})`;
-      if      (nf > 0)    el.style.background = 'rgba(220,38,38,.08)';
-      else if (nw > 0)    el.style.background = 'rgba(217,119,6,.08)';
-      else if (allSkip)   el.style.background = 'rgba(107,114,128,.06)';
-      else if (np > 0)    el.style.background = 'rgba(22,163,74,.04)';
+      if (nf > 0) el.style.background = 'rgba(220,38,38,.08)';
+      else if (nw > 0) el.style.background = 'rgba(217,119,6,.08)';
+      else if (allSkip) el.style.background = 'rgba(107,114,128,.06)';
+      else if (np > 0) el.style.background = 'rgba(22,163,74,.04)';
 
-      const nameEl  = el.querySelector('.sidebar-cat-name');
-      const miniEl  = el.querySelector('.sidebar-mini-counts');
+      const nameEl = el.querySelector('.sidebar-cat-name');
+      const miniEl = el.querySelector('.sidebar-mini-counts');
 
       if (nameEl) nameEl.textContent = name;
 
@@ -508,39 +507,39 @@ window.UIRenderer = (function () {
   function renderFileDetail(container, filename, logEntry, checkResults) {
     container.innerHTML = '';
     const bn = filename.split('/').pop();
-    const f  = logEntry;
+    const f = logEntry;
+    const st = r => (r.status || '').toUpperCase();
+    const fails = checkResults.filter(r => st(r) === 'FAIL').length;
+    const warns = checkResults.filter(r => st(r) === 'WARN').length;
+    const passes = checkResults.filter(r => st(r) === 'PASS').length;
 
-    const fails = checkResults.filter(r => r.status === 'FAIL').length;
-    const warns = checkResults.filter(r => r.status === 'WARN').length;
-    const passes= checkResults.filter(r => r.status === 'PASS').length;
-
-    const logTypeColor = { txn:'#7c3aed', sys:'#0369a1', audit:'#c2410c', TransactionLog:'#7c3aed', SystemLog:'#0369a1', AuditLog:'#c2410c' };
-    const logTypeBg    = { txn:'#ede9fe',  sys:'#e0f2fe',  audit:'#fff7ed',  TransactionLog:'#ede9fe',  SystemLog:'#e0f2fe',  AuditLog:'#fff7ed' };
-    const logTypeLabel = { sys:'SystemLog', txn:'TransactionLog', audit:'AuditLog' };
-    const lt      = logTypeLabel[f.logType] || f.logTypeLabel || f.logType || 'Unbekannt';
+    const logTypeColor = { txn: '#7c3aed', sys: '#0369a1', audit: '#c2410c', TransactionLog: '#7c3aed', SystemLog: '#0369a1', AuditLog: '#c2410c' };
+    const logTypeBg = { txn: '#ede9fe', sys: '#e0f2fe', audit: '#fff7ed', TransactionLog: '#ede9fe', SystemLog: '#e0f2fe', AuditLog: '#fff7ed' };
+    const logTypeLabel = { sys: 'SystemLog', txn: 'TransactionLog', audit: 'AuditLog' };
+    const lt = logTypeLabel[f.logType] || f.logTypeLabel || f.logType || 'Unbekannt';
     const ltColor = logTypeColor[f.logType] || logTypeColor[lt] || '#6b7280';
-    const ltBg    = logTypeBg[f.logType]    || logTypeBg[lt]    || '#f1f5f9';
+    const ltBg = logTypeBg[f.logType] || logTypeBg[lt] || '#f1f5f9';
 
     const verdict = fails > 0 ? 'fail' : warns > 0 ? 'warn' : 'pass';
-    const verdictColor = {fail:'var(--fail)',warn:'var(--warn)',pass:'var(--pass)'}[verdict];
+    const verdictColor = { fail: 'var(--fail)', warn: 'var(--warn)', pass: 'var(--pass)' }[verdict];
 
     const fmtUnix = t => {
       if (t == null) return '–';
       if (t < 1000000) return String(t);
-      try { return new Date(t * 1000).toISOString().replace('T',' ').replace('Z',' UTC'); } catch(e) { return String(t); }
+      try { return new Date(t * 1000).toISOString().replace('T', ' ').replace('Z', ' UTC'); } catch (e) { return String(t); }
     };
 
     container.innerHTML = `
       <div style="margin-bottom:16px">
-        <button class="btn btn-secondary" style="margin-bottom:12px" onclick="app.navigateTo('overview')">← Übersicht</button>
+        <button class="btn btn-secondary" style="margin-bottom:12px" onclick="app.navigateTo('files')">← Dateien im Archiv</button>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span style="font-size:20px">📄</span>
           <span style="padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;color:${ltColor};background:${ltBg};border:1px solid ${ltColor}40">${_esc(lt)}</span>
           <span style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--text)">${_esc(bn)}</span>
           <span style="margin-left:auto;display:flex;gap:6px">
-            ${fails>0?`<span class="status-badge sb-fail">✗ ${fails} Fehler</span>`:''}
-            ${warns>0?`<span class="status-badge sb-warn">⚠ ${warns} Warnungen</span>`:''}
-            ${fails===0&&warns===0?'<span class="status-badge sb-pass">✓ OK</span>':''}
+            ${fails > 0 ? `<span class="status-badge sb-fail">✗ ${fails} Fehler</span>` : ''}
+            ${warns > 0 ? `<span class="status-badge sb-warn">⚠ ${warns} Warnungen</span>` : ''}
+            ${fails === 0 && warns === 0 ? '<span class="status-badge sb-pass">✓ OK</span>' : ''}
           </span>
         </div>
       </div>
@@ -555,29 +554,29 @@ window.UIRenderer = (function () {
           <div style="padding:14px 16px 4px;font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em">Log-Felder (ASN.1 geparst)</div>
           <div class="cert-fields-grid" style="padding:8px 16px 14px">
             ${_kv('Log-Typ', `<span style="color:${ltColor};font-weight:600">${_esc(lt)}</span>`)}
-            ${_kv('version', f.version != null ? `${f.version}${f.version===3?' <span style="color:var(--pass)">✓</span>':' <span style="color:var(--fail)">✗</span>'}` : '–')}
+            ${_kv('version', f.version != null ? `${f.version}${f.version === 3 ? ' <span style="color:var(--pass)">✓</span>' : ' <span style="color:var(--fail)">✗</span>'}` : '–')}
             ${_kv('certifiedDataType OID', `<code>${_esc(f.certifiedDataType || f.oid || '–')}</code>`)}
             ${_kv('signatureAlgorithm', `<code>${_esc(f.sigAlgName || '–')}</code>${f.sigAlgOID ? ` <span style="font-size:10px;color:var(--text-muted)">${_esc(f.sigAlgOID)}</span>` : ''}`)}
             ${_kv('signatureCounter', f.signatureCounter != null ? `<code>${f.signatureCounter}</code>` : '–')}
             ${_kv('signatureCreationTime', f.signatureCreationTime != null ? `<code>${fmtUnix(f.signatureCreationTime)}</code>` : '–')}
-            ${_kv('serialNumber', f.serialNumber ? `<code style="font-size:10px;word-break:break-all">${f.serialNumber.slice(0,64)}${f.serialNumber.length>64?'…':''}</code>` : '–')}
-            ${_kv('signatureValue', f.signatureValueLen != null ? `<code>${f.signatureValueLen} Byte (${(f.signatureValueHex||'').slice(0,16)}…)</code>` : '–')}
-            ${f.eventType   != null ? _kv('eventType',   `<code>${_esc(f.eventType)}</code>`) : ''}
+            ${_kv('serialNumber', f.serialNumber ? `<code style="font-size:10px;word-break:break-all">${f.serialNumber.slice(0, 64)}${f.serialNumber.length > 64 ? '…' : ''}</code>` : '–')}
+            ${_kv('signatureValue', f.signatureValueLen != null ? `<code>${f.signatureValueLen} Byte (${(f.signatureValueHex || '').slice(0, 16)}…)</code>` : '–')}
+            ${f.eventType != null ? _kv('eventType', `<code>${_esc(f.eventType)}</code>`) : ''}
             ${f.eventOrigin != null ? _kv('eventOrigin', `<code>${_esc(f.eventOrigin)}</code>`) : ''}
             ${f.eventTriggeredByUser != null ? _kv('eventTriggeredByUser', `<code>${_esc(f.eventTriggeredByUser)}</code>`) : ''}
             ${f.eventDataLen != null ? _kv('eventData',
-              f.eventDataLen === 0
-                ? '<span style="color:var(--text-muted)">leer (0 Byte) – leere SEQUENCE ✓</span>'
-                : `<code>${f.eventDataLen} Byte${f.eventDataDecoded ? ' · ' + _esc(f.eventDataDecoded.slice(0,120)) : ''}</code>`)
-              : (lt === 'SystemLog' ? _kv('eventData', '<span style="color:var(--fail)">✗ fehlt (Pflichtfeld)</span>') : '')}
+      f.eventDataLen === 0
+        ? '<span style="color:var(--text-muted)">leer (0 Byte) – leere SEQUENCE ✓</span>'
+        : `<code>${f.eventDataLen} Byte${f.eventDataDecoded ? ' · ' + _esc(f.eventDataDecoded.slice(0, 120)) : ''}</code>`)
+        : (lt === 'SystemLog' ? _kv('eventData', '<span style="color:var(--fail)">✗ fehlt (Pflichtfeld)</span>') : '')}
             ${f.operationType != null ? _kv('operationType', `<code style="color:var(--accent)">${_esc(f.operationType)}</code>`) : ''}
             ${f.transactionNumber != null ? _kv('transactionNumber', `<code>Nr. ${f.transactionNumber}</code>`) : ''}
             ${f.clientId != null ? _kv('clientId', `<code>${_esc(String(f.clientId))}</code>`) : ''}
             ${f.processType != null ? _kv('processType', _esc(f.processType)) : ''}
-            ${f.processDataLen != null ? _kv('processData', `<code style="font-size:10px">${f.processDataLen} Byte${f.processDataText ? ' · ' + _esc(f.processDataText.slice(0,80)) : ''}</code>`) : ''}
+            ${f.processDataLen != null ? _kv('processData', `<code style="font-size:10px">${f.processDataLen} Byte${f.processDataText ? ' · ' + _esc(f.processDataText.slice(0, 80)) : ''}</code>`) : ''}
             ${f.additionalExternalDataPresent ? _kv('additionalExternalData',
-              `<code style="font-size:10px">${f.additionalExternalDataLen} Byte${f.additionalExternalDataText ? ' · ' + _esc(f.additionalExternalDataText.slice(0,80)) : ''}</code>`) : ''}
-            ${f.seAuditDataLen != null ? _kv('seAuditData', `<code style="font-size:10px">${f.seAuditDataLen} Byte${f.seAuditDataDecoded ? '<br>' + _esc(f.seAuditDataDecoded.slice(0,200)) : ''}${f.seAuditDataHex ? '<br><span style="color:var(--text-muted)">' + _esc(f.seAuditDataHex.slice(0,48)) + '…</span>' : ''}</code>`) : ''}
+          `<code style="font-size:10px">${f.additionalExternalDataLen} Byte${f.additionalExternalDataText ? ' · ' + _esc(f.additionalExternalDataText.slice(0, 80)) : ''}</code>`) : ''}
+            ${f.seAuditDataLen != null ? _kv('seAuditData', `<code style="font-size:10px">${f.seAuditDataLen} Byte${f.seAuditDataDecoded ? '<br>' + _esc(f.seAuditDataDecoded.slice(0, 200)) : ''}${f.seAuditDataHex ? '<br><span style="color:var(--text-muted)">' + _esc(f.seAuditDataHex.slice(0, 48)) + '…</span>' : ''}</code>`) : ''}
           </div>
         </div>
       `}
@@ -586,8 +585,8 @@ window.UIRenderer = (function () {
         <div style="padding:14px 16px 0;display:flex;justify-content:space-between;align-items:center">
           <div style="font-size:13px;font-weight:700;color:var(--text)">TR-Prüfungen (${checkResults.length})</div>
           <div style="display:flex;gap:6px">
-            ${fails>0?`<span class="status-badge sb-fail">✗ ${fails}</span>`:''}
-            ${warns>0?`<span class="status-badge sb-warn">⚠ ${warns}</span>`:''}
+            ${fails > 0 ? `<span class="status-badge sb-fail">✗ ${fails}</span>` : ''}
+            ${warns > 0 ? `<span class="status-badge sb-warn">⚠ ${warns}</span>` : ''}
             <span class="status-badge sb-pass">✓ ${passes}</span>
           </div>
         </div>
@@ -603,34 +602,34 @@ window.UIRenderer = (function () {
   function renderCertDetail(container, filename, certEntry, checkResults) {
     container.innerHTML = '';
     const bn = filename.split('/').pop();
-    const c  = certEntry;
-
-    const fails = checkResults.filter(r => r.status === 'FAIL').length;
-    const warns = checkResults.filter(r => r.status === 'WARN').length;
-    const passes= checkResults.filter(r => r.status === 'PASS').length;
+    const c = certEntry;
+    const st = r => (r.status || '').toUpperCase();
+    const fails = checkResults.filter(r => st(r) === 'FAIL').length;
+    const warns = checkResults.filter(r => st(r) === 'WARN').length;
+    const passes = checkResults.filter(r => st(r) === 'PASS').length;
 
     const certType = c._certType || 'leaf';
     const certTypeLabel = c._certTypeLabel || 'TSE-Blatt';
     const typeColors = { root: '#d97706', subca: '#7c3aed', leaf: '#2563eb' };
-    const typeBgs    = { root: '#fffbeb', subca: '#ede9fe', leaf: '#eff6ff' };
+    const typeBgs = { root: '#fffbeb', subca: '#ede9fe', leaf: '#eff6ff' };
     const tc = typeColors[certType] || '#6b7280';
-    const tb = typeBgs[certType]    || '#f9fafb';
+    const tb = typeBgs[certType] || '#f9fafb';
 
     const fmtD = d => d ? d.toISOString().split('T')[0] : '–';
-    const now  = new Date();
+    const now = new Date();
     const vNow = c.notBefore && c.notAfter && c.notBefore <= now && now <= c.notAfter;
 
     container.innerHTML = `
       <div style="margin-bottom:16px">
-        <button class="btn btn-secondary" style="margin-bottom:12px" onclick="app.navigateTo('overview')">← Übersicht</button>
+        <button class="btn btn-secondary" style="margin-bottom:12px" onclick="app.navigateTo('files')">← Dateien im Archiv</button>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span style="font-size:20px">🔐</span>
           <span style="padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;color:${tc};background:${tb};border:1px solid ${tc}40">${_esc(certTypeLabel)}</span>
           <span style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis">${_esc(bn)}</span>
           <span style="margin-left:auto;display:flex;gap:6px">
-            ${fails>0?`<span class="status-badge sb-fail">✗ ${fails}</span>`:''}
-            ${warns>0?`<span class="status-badge sb-warn">⚠ ${warns}</span>`:''}
-            ${fails===0&&warns===0?'<span class="status-badge sb-pass">✓ OK</span>':''}
+            ${fails > 0 ? `<span class="status-badge sb-fail">✗ ${fails}</span>` : ''}
+            ${warns > 0 ? `<span class="status-badge sb-warn">⚠ ${warns}</span>` : ''}
+            ${fails === 0 && warns === 0 ? '<span class="status-badge sb-pass">✓ OK</span>' : ''}
           </span>
         </div>
       </div>
@@ -642,16 +641,16 @@ window.UIRenderer = (function () {
             ${_kv('Typ', `<span style="color:${tc};font-weight:600">${_esc(certTypeLabel)}</span>`)}
             ${_kv('Seriennummer', `<code style="font-size:10px;word-break:break-all">${_esc(c.serialNumber || '–')}</code>`)}
             ${_kv('Subject CN', `<code>${_esc(c.subjectDN?.CN || c.subjectDN?.O || '–')}</code>`)}
-            ${_kv('Issuer CN',  `<code>${_esc(c.issuerDN?.CN || c.issuerDN?.O || '–')}</code>`)}
+            ${_kv('Issuer CN', `<code>${_esc(c.issuerDN?.CN || c.issuerDN?.O || '–')}</code>`)}
             ${_kv('Gültig ab', `<code>${fmtD(c.notBefore)}</code>`)}
-            ${_kv('Gültig bis', `<code style="color:${vNow?'var(--pass)':'var(--warn)'}">${fmtD(c.notAfter)}${vNow?'':' ⚠'}</code>`)}
+            ${_kv('Gültig bis', `<code style="color:${vNow ? 'var(--pass)' : 'var(--warn)'}">${fmtD(c.notAfter)}${vNow ? '' : ' ⚠'}</code>`)}
             ${c.pkupNotAfter ? _kv('Private Key bis', `<code>${fmtD(c.pkupNotAfter)}</code>`) : ''}
             ${_kv('Signaturalgorithmus', _esc(c.sigAlgName || c.signatureAlgorithm || '–'))}
             ${_kv('Schlüsselkurve', _esc(c.curveName || c.publicKeyCurve || '–'))}
             ${_kv('Basic Constraints', `<code>CA:${c.isCA ? 'TRUE' : 'FALSE'}${c.pathLen !== undefined ? `, pathlen:${c.pathLen}` : ''}</code>`)}
             ${_kv('SKI', `<code style="font-size:10px;word-break:break-all">${_esc(c.skiValue || '–')}</code>`)}
             ${c.akiValue ? _kv('AKI', `<code style="font-size:10px;word-break:break-all">${_esc(c.akiValue)}</code>`) : ''}
-            ${(c.crlDistPoints||[]).length > 0 ? _kv('CRL Distribution Point', `<a href="${_esc(c.crlDistPoints[0])}" style="font-size:11px;color:var(--accent)" target="_blank">${_esc(c.crlDistPoints[0])}</a>`) : ''}
+            ${(c.crlDistPoints || []).length > 0 ? _kv('CRL Distribution Point', `<a href="${_esc(c.crlDistPoints[0])}" style="font-size:11px;color:var(--accent)" target="_blank">${_esc(c.crlDistPoints[0])}</a>`) : ''}
             ${c.bsiTseOID ? _kv('BSI-TSE-OID', `<code>${_esc(c.bsiTseOID)}</code>`) : ''}
           </div>
         </div>
@@ -661,8 +660,8 @@ window.UIRenderer = (function () {
         <div style="padding:14px 16px 0;display:flex;justify-content:space-between;align-items:center">
           <div style="font-size:13px;font-weight:700;color:var(--text)">BSI TR-Prüfungen (${checkResults.length})</div>
           <div style="display:flex;gap:6px">
-            ${fails>0?`<span class="status-badge sb-fail">✗ ${fails}</span>`:''}
-            ${warns>0?`<span class="status-badge sb-warn">⚠ ${warns}</span>`:''}
+            ${fails > 0 ? `<span class="status-badge sb-fail">✗ ${fails}</span>` : ''}
+            ${warns > 0 ? `<span class="status-badge sb-warn">⚠ ${warns}</span>` : ''}
             <span class="status-badge sb-pass">✓ ${passes}</span>
           </div>
         </div>
@@ -678,7 +677,7 @@ window.UIRenderer = (function () {
 
   function _buildInfoCsvPanel(infoRows, tarResult) {
     const { components, description, unknownLines, raw } = infoRows;
-    const REQUIRED = ['manufacturer','model','version','certification-id'];
+    const REQUIRED = ['manufacturer', 'model', 'version', 'certification-id'];
 
     const panel = document.createElement('div');
     panel.style.marginBottom = '16px';
@@ -687,7 +686,7 @@ window.UIRenderer = (function () {
     const compRows = components.map(c => {
       const fldCell = (v, key) => {
         const ok = !!v;
-        return `<td style="${ok?'':'color:var(--fail);font-weight:600;background:var(--fail-bg)'}">
+        return `<td style="${ok ? '' : 'color:var(--fail);font-weight:600;background:var(--fail-bg)'}">
           ${ok ? _esc(v) : `✗ leer`}</td>`;
       };
       return `<tr>
@@ -695,7 +694,7 @@ window.UIRenderer = (function () {
         ${fldCell(c.manufacturer)}
         ${fldCell(c.model)}
         ${fldCell(c.version)}
-        <td style="font-family:var(--mono);font-size:10px${c['certification-id']?'':';color:var(--fail);font-weight:600;background:var(--fail-bg)'}">
+        <td style="font-family:var(--mono);font-size:10px${c['certification-id'] ? '' : ';color:var(--fail);font-weight:600;background:var(--fail-bg)'}">
           ${c['certification-id'] ? _esc(c['certification-id']) : '✗ leer'}</td>
         <td style="text-align:center">${c.validComponent
           ? '<span style="color:var(--pass);font-weight:700">✓</span>'
@@ -735,17 +734,15 @@ window.UIRenderer = (function () {
           </div>
           <div style="padding:10px 14px;font-family:var(--mono);font-size:12px;color:var(--text)">
             ${description !== null
-              ? (description || '<span style="color:var(--text-muted)">(leer)</span>')
-              : '<span style="color:var(--fail)">✗ Keine description:-Zeile</span>'}
+        ? (description || '<span style="color:var(--text-muted)">(leer)</span>')
+        : '<span style="color:var(--fail)">✗ Keine description:-Zeile</span>'}
           </div>
         </div>
         <div class="card">
           <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;gap:6px;align-items:center">
             <span>📄</span><span style="font-size:12px;font-weight:700">Rohdaten info.csv</span>
           </div>
-          <div style="padding:10px 14px;font-family:var(--mono);font-size:11px;white-space:pre-wrap;word-break:break-all;color:var(--text-muted);max-height:160px;overflow-y:auto">
-            ${_esc(raw || '(nicht gefunden)')}
-          </div>
+          <div style="padding:10px 14px;font-family:var(--mono);font-size:11px;white-space:pre-wrap;word-break:break-all;color:var(--text-muted);max-height:160px;overflow-y:auto">${_esc(raw || '(nicht gefunden)')}</div>
         </div>
       </div>
     `;
@@ -754,18 +751,19 @@ window.UIRenderer = (function () {
 
   function _buildCatCard(catName, catResults) {
     const card = Utils.cloneTemplate('tpl-ov-cat-card');
-    const fails  = catResults.filter(r => r.status === 'FAIL').length;
-    const warns  = catResults.filter(r => r.status === 'WARN').length;
-    const passes = catResults.filter(r => r.status === 'PASS').length;
-    const skips  = catResults.filter(r => r.status === 'SKIP').length;
+    const st = r => (r.status || '').toUpperCase();
+    const fails = catResults.filter(r => st(r) === 'FAIL').length;
+    const warns = catResults.filter(r => st(r) === 'WARN').length;
+    const passes = catResults.filter(r => st(r) === 'PASS').length;
+    const skips = catResults.filter(r => st(r) === 'SKIP').length;
 
     card.dataset.cat = catName;
     card.style.cursor = 'pointer';
 
-    if (fails > 0)       { card.style.borderLeft = '4px solid var(--fail)'; card.style.background = '#fff8f8'; }
-    else if (warns > 0)  { card.style.borderLeft = '4px solid var(--warn)'; card.style.background = '#fffdf5'; }
+    if (fails > 0) { card.style.borderLeft = '4px solid var(--fail)'; card.style.background = '#fff8f8'; }
+    else if (warns > 0) { card.style.borderLeft = '4px solid var(--warn)'; card.style.background = '#fffdf5'; }
     else if (passes > 0) { card.style.borderLeft = '4px solid var(--pass)'; }
-    else                 { card.style.borderLeft = '4px solid var(--info)'; }
+    else { card.style.borderLeft = '4px solid var(--info)'; }
 
     const nameEl = card.querySelector('.overview-cat-name');
     if (nameEl) nameEl.textContent = catName;
@@ -773,10 +771,10 @@ window.UIRenderer = (function () {
     const idEl = card.querySelector('.overview-cat-id');
     if (idEl) {
       idEl.innerHTML = [
-        fails  > 0 ? `<span style="color:var(--fail);font-weight:700">✗ ${fails}</span>` : '',
-        warns  > 0 ? `<span style="color:var(--warn);font-weight:700">⚠ ${warns}</span>` : '',
+        fails > 0 ? `<span style="color:var(--fail);font-weight:700">✗ ${fails}</span>` : '',
+        warns > 0 ? `<span style="color:var(--warn);font-weight:700">⚠ ${warns}</span>` : '',
         passes > 0 ? `<span style="color:var(--pass)">✓ ${passes}</span>` : '',
-        skips  > 0 ? `<span style="color:var(--skip)">– ${skips}</span>` : '',
+        skips > 0 ? `<span style="color:var(--skip)">– ${skips}</span>` : '',
       ].filter(Boolean).join('&nbsp; ');
     }
 
@@ -794,11 +792,11 @@ window.UIRenderer = (function () {
 
   function _buildCheckRow(result) {
     const row = Utils.cloneTemplate('tpl-check-row');
-    const s   = result.status;
+    const s = result.status;
     row.dataset.checkId = result.id;
     row.classList.add(`status-${s.toLowerCase()}`);
 
-    _setQ(row, '.check-id',   result.id);
+    _setQ(row, '.check-id', result.id);
     _setQ(row, '.check-name', result.name);
 
     const short = (result.detail || '').split('\n')[0].slice(0, 120);
@@ -810,17 +808,17 @@ window.UIRenderer = (function () {
     const badge = row.querySelector('.status-badge');
     if (badge) {
       badge.textContent = s;
-      badge.className   = `status-badge sb-${s.toLowerCase()}`;
+      badge.className = `status-badge sb-${s.toLowerCase()}`;
     }
 
     // Rule text: from result OR from rulesDB
     const ruleInfo = _rulesDB[result.id];
     const ruleText = result.ruleText || (ruleInfo && ruleInfo.rule) || '';
-    const refText  = result.ref || (ruleInfo && ruleInfo.ref) || '';
+    const refText = result.ref || (ruleInfo && ruleInfo.ref) || '';
 
-    _setQ(row, '.check-rule-body',  ruleText);
+    _setQ(row, '.check-rule-body', ruleText);
     _setQ(row, '.check-detail-box', result.detail || '–');
-    _setQ(row, '.check-ref',        refText ? `📎 ${refText}` : '');
+    _setQ(row, '.check-ref', refText ? `📎 ${refText}` : '');
 
     // If we have extra rule info from DB, add it
     if (ruleInfo) {
@@ -828,8 +826,8 @@ window.UIRenderer = (function () {
       if (ruleInfo.pass_text) extras.push(`✓ Bestanden: ${ruleInfo.pass_text}`);
       if (ruleInfo.fail_text) extras.push(`✗ Fehler: ${ruleInfo.fail_text}`);
       if (ruleInfo.warn_text) extras.push(`⚠ Warnung: ${ruleInfo.warn_text}`);
-      if (ruleInfo.regex)     extras.push(`Regex: ${ruleInfo.regex}`);
-      if (ruleInfo.allowed)   extras.push(`Erlaubte Werte: ${ruleInfo.allowed}`);
+      if (ruleInfo.regex) extras.push(`Regex: ${ruleInfo.regex}`);
+      if (ruleInfo.allowed) extras.push(`Erlaubte Werte: ${ruleInfo.allowed}`);
       if (extras.length > 0) {
         const ruleExtra = row.querySelector('.check-rule-extra');
         if (ruleExtra) {
@@ -879,7 +877,7 @@ window.UIRenderer = (function () {
     return (b / 1048576).toFixed(1) + ' MB';
   }
   function _esc(s) {
-    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').trim();
   }
 
   return { renderWelcome, renderAnalyzing, renderOverview, renderAllFiles, renderAllTests, renderCategory, renderSidebar, renderFileDetail, renderCertDetail };

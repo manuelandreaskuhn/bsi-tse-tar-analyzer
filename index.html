@@ -1,296 +1,338 @@
 <!DOCTYPE html>
 <html lang="de">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>TSE TAR Analyzer v2 – BSI TR-03151/TR-03153</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
-<div id="app">
 
-  <!-- ═══════════════════════════════════════════════
+<body>
+  <div id="app">
+
+    <!-- ═══════════════════════════════════════════════
        APP HEADER
   ════════════════════════════════════════════════ -->
-  <header class="app-header">
-    <div class="header-logo">
-      <div class="header-logo-icon">TSE</div>
-      <div class="header-logo-text">TAR Analyzer <span style="font-weight:300;opacity:.7">v2</span></div>
-    </div>
-    <div class="header-divider"></div>
-    <div class="header-right">
-      <span class="header-type-badge" id="header-type-badge"></span>
-      <span class="header-badge">BSI TR-03151/03153</span>
-      <span class="header-badge">298 Regeln</span>
-      <button class="btn btn-secondary" id="btn-reset" style="display:none" onclick="app.reset()">↺ Neu laden</button>
-    </div>
-  </header>
+    <header class="app-header">
+      <div class="header-logo">
+        <div class="header-logo-icon">TSE</div>
+        <div class="header-logo-text">TAR Analyzer <span style="font-weight:300;opacity:.7">v2</span></div>
+      </div>
+      <div class="header-divider"></div>
+      <div class="header-right">
+        <span class="header-type-badge" id="header-type-badge"></span>
+        <span class="header-badge">BSI TR-03151/03153</span>
+        <span class="header-badge">298 Regeln</span>
+        <button class="btn btn-secondary" id="btn-reset" style="display:none" onclick="app.reset()">↺ Neu laden</button>
+      </div>
+    </header>
 
-  <!-- ═══════════════════════════════════════════════
+    <!-- ═══════════════════════════════════════════════
        APP BODY
   ════════════════════════════════════════════════ -->
-  <div class="app-body">
+    <div class="app-body">
 
-    <!-- SIDEBAR -->
-    <nav class="sidebar" id="sidebar" style="display:none">
-      <div class="sidebar-section">
-        <div class="sidebar-nav-item" id="nav-overview" onclick="app.navigateTo('overview')">
-          <span class="snav-icon">📊</span>
-          <span class="snav-label">Übersicht</span>
+      <!-- SIDEBAR -->
+      <nav class="sidebar" id="sidebar" style="display:none">
+        <div class="sidebar-section">
+          <div class="sidebar-nav-item" id="nav-overview" onclick="app.navigateTo('overview')">
+            <span class="snav-icon">📊</span>
+            <span class="snav-label">Übersicht</span>
+          </div>
+          <div class="sidebar-nav-item" id="nav-all-tests" onclick="app.navigateTo('all-tests')">
+            <span class="snav-icon">🔍</span>
+            <span class="snav-label">Alle Tests</span>
+            <span class="sidebar-mini-counts" id="nav-all-tests-counts"></span>
+          </div>
+          <div class="sidebar-nav-item" id="nav-files" onclick="app.navigateTo('files')">
+            <span class="snav-icon">🗂</span>
+            <span class="snav-label">Dateien im Archiv</span>
+            <span class="sidebar-mini-counts" id="nav-files-counts"></span>
+          </div>
         </div>
-        <div class="sidebar-nav-item" id="nav-all-tests" onclick="app.navigateTo('all-tests')">
-          <span class="snav-icon">🔍</span>
-          <span class="snav-label">Alle Tests</span>
-          <span class="snav-badge" id="nav-all-tests-badge"></span>
+        <div class="sidebar-section">
+          <div class="sidebar-section-title">Kategorien</div>
+          <div class="sidebar-cat-list" id="sidebar-cat-list"></div>
         </div>
-        <div class="sidebar-nav-item" id="nav-files" onclick="app.navigateTo('files')">
-          <span class="snav-icon">🗂</span>
-          <span class="snav-label">Dateien im Archiv</span>
-          <span class="snav-badge" id="nav-files-badge"></span>
-        </div>
-      </div>
-      <div class="sidebar-section">
-        <div class="sidebar-section-title">Kategorien</div>
-        <div class="sidebar-cat-list" id="sidebar-cat-list"></div>
-      </div>
-    </nav>
+      </nav>
 
-    <!-- MAIN CONTENT -->
-    <main class="content" id="content">
-      <!-- dynamic content rendered here -->
-    </main>
+      <!-- MAIN CONTENT -->
+      <main class="content" id="content">
+        <!-- dynamic content rendered here -->
+      </main>
 
-  </div><!-- /app-body -->
-</div><!-- /app -->
+    </div><!-- /app-body -->
+  </div><!-- /app -->
 
-<!-- ═══════════════════════════════════════════════════════════
+  <!-- ═══════════════════════════════════════════════════════════
      TEMPLATES – All HTML structure lives here, not in JS
 ═══════════════════════════════════════════════════════════ -->
 
-<!-- TEMPLATE: Welcome / Drop Zone -->
-<template id="tpl-welcome">
-  <div>
-    <div class="drop-zone" id="drop-zone">
-      <input type="file" id="file-input" accept=".tar,.tar.001,.tar.002" style="display:none">
-      <div class="drop-icon">📦</div>
-      <div class="drop-title">TAR-Archiv auswählen</div>
-      <div class="drop-sub">BSI TR-03151/TR-03153 konformes TAR-Archiv öffnen</div>
-      <div class="drop-hint">Export_*.tar &nbsp;|&nbsp; CertificateExport_*.tar</div>
-    </div>
-    <div class="type-selector" id="type-selector" style="display:none">
-      <button class="type-btn" id="btn-type-export" onclick="app.setArchiveType('export')">
-        <div class="type-btn-icon">📄</div>
-        <div class="type-btn-title">Standard-Export</div>
-        <div class="type-btn-sub">Export_*.tar — Logs + Zertifikate + info.csv</div>
-      </button>
-      <button class="type-btn" id="btn-type-cert" onclick="app.setArchiveType('cert-export')">
-        <div class="type-btn-icon">🔐</div>
-        <div class="type-btn-title">CertificateExport</div>
-        <div class="type-btn-sub">CertificateExport_*.tar — nur Zertifikate + info.csv</div>
-      </button>
-    </div>
-    <div id="type-action-row" style="display:none; text-align:center; margin-top:10px">
-      <button class="btn btn-primary" onclick="app.startAnalysis()">▶ Analyse starten</button>
-    </div>
-  </div>
-</template>
-
-<!-- TEMPLATE: Analyzing -->
-<template id="tpl-analyzing">
-  <div class="card">
-    <div class="analyzing-card">
-      <div class="spinner"></div>
-      <div class="analyzing-text" id="analyzing-text">Analysiere Archiv…</div>
-      <div class="analyzing-sub" id="analyzing-sub">Bitte warten</div>
-      <div class="progress-bar-wrap" style="max-width:300px;margin:12px auto 0">
-        <div class="progress-bar-fill" id="analyzing-progress" style="width:0%"></div>
+  <!-- TEMPLATE: Welcome / Drop Zone -->
+  <template id="tpl-welcome">
+    <div>
+      <div class="drop-zone" id="drop-zone">
+        <input type="file" id="file-input" accept=".tar,.tar.001,.tar.002" style="display:none">
+        <div class="drop-icon">📦</div>
+        <div class="drop-title">TAR-Archiv auswählen</div>
+        <div class="drop-sub">BSI TR-03151/TR-03153 konformes TAR-Archiv öffnen</div>
+        <div class="drop-hint">Export_*.tar &nbsp;|&nbsp; CertificateExport_*.tar</div>
+      </div>
+      <div class="type-selector" id="type-selector" style="display:none">
+        <button class="type-btn" id="btn-type-export" onclick="app.setArchiveType('export')">
+          <div class="type-btn-icon">📄</div>
+          <div class="type-btn-title">Standard-Export</div>
+          <div class="type-btn-sub">Export_*.tar — Logs + Zertifikate + info.csv</div>
+        </button>
+        <button class="type-btn" id="btn-type-cert" onclick="app.setArchiveType('cert-export')">
+          <div class="type-btn-icon">🔐</div>
+          <div class="type-btn-title">CertificateExport</div>
+          <div class="type-btn-sub">CertificateExport_*.tar — nur Zertifikate + info.csv</div>
+        </button>
+      </div>
+      <div id="type-action-row" style="display:none; text-align:center; margin-top:10px">
+        <button class="btn btn-primary" onclick="app.startAnalysis()">▶ Analyse starten</button>
       </div>
     </div>
-  </div>
-</template>
+  </template>
 
-<!-- TEMPLATE: Overview page -->
-<template id="tpl-overview">
-  <div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-      <div class="page-title" id="ov-title">Analyse-Ergebnis</div>
-    </div>
-    <div class="page-sub" id="ov-sub"></div>
-
-    <!-- Verdict Banner -->
-    <div class="verdict-banner" id="ov-verdict">
-      <div class="verdict-icon" id="ov-verdict-icon"></div>
-      <div>
-        <div class="verdict-title" id="ov-verdict-title"></div>
-        <div class="verdict-sub" id="ov-verdict-sub"></div>
-        <div class="verdict-meta" id="ov-verdict-meta"></div>
-      </div>
-    </div>
-
-    <!-- Stats Grid -->
-    <div class="stats-grid">
-      <div class="stat-card"><div class="stat-value sv-total" id="stat-total">0</div><div class="stat-label">Gesamt</div><div class="stat-bar"><div class="stat-bar-fill" style="background:var(--border-strong);width:100%"></div></div></div>
-      <div class="stat-card"><div class="stat-value sv-pass" id="stat-pass">0</div><div class="stat-label">Bestanden</div><div class="stat-bar"><div class="stat-bar-fill" style="background:var(--pass)" id="bar-pass"></div></div></div>
-      <div class="stat-card"><div class="stat-value sv-fail" id="stat-fail">0</div><div class="stat-label">Fehler</div><div class="stat-bar"><div class="stat-bar-fill" style="background:var(--fail)" id="bar-fail"></div></div></div>
-      <div class="stat-card"><div class="stat-value sv-warn" id="stat-warn">0</div><div class="stat-label">Warnungen</div><div class="stat-bar"><div class="stat-bar-fill" style="background:var(--warn)" id="bar-warn"></div></div></div>
-      <div class="stat-card"><div class="stat-value sv-info" id="stat-info">0</div><div class="stat-label">Info</div><div class="stat-bar"><div class="stat-bar-fill" style="background:var(--info)" id="bar-info"></div></div></div>
-      <div class="stat-card"><div class="stat-value sv-skip" id="stat-skip">0</div><div class="stat-label">Skipped</div><div class="stat-bar"><div class="stat-bar-fill" style="background:var(--skip)" id="bar-skip"></div></div></div>
-    </div>
-
-    <!-- Meta Info -->
-    <div class="meta-grid">
-      <div class="meta-card">
-        <div class="meta-card-title">📦 Archiv-Info</div>
-        <div id="meta-archive"></div>
-      </div>
-      <div class="meta-card">
-        <div class="meta-card-title">📁 Enthaltene Dateien</div>
-        <div id="meta-files"></div>
-      </div>
-      <div class="meta-card">
-        <div class="meta-card-title">⚙️ Analyse-Parameter</div>
-        <div id="meta-params"></div>
-      </div>
-    </div>
-
-  </div>
-</template>
-
-<!-- TEMPLATE: Category page -->
-<template id="tpl-category">
-  <div>
-    <div class="cat-page-header">
-      <button class="btn btn-secondary" onclick="app.navigateTo('files')" style="padding:5px 10px;font-size:12px">← Dateien im Archiv</button>
-      <div>
-        <div class="cat-page-num" id="cp-num"></div>
-        <div class="cat-page-title" id="cp-title"></div>
-      </div>
-    </div>
-    <div class="cat-page-count" id="cp-count"></div>
-
-    <!-- Filter Bar -->
-    <div class="filter-bar">
-      <span style="font-size:11px;color:var(--text-muted);font-weight:600">FILTER:</span>
-      <button class="filter-btn active" data-filter="all" onclick="app.setFilter('all',this)">Alle</button>
-      <button class="filter-btn f-fail" data-filter="FAIL" onclick="app.setFilter('FAIL',this)">❌ Fehler</button>
-      <button class="filter-btn f-warn" data-filter="WARN" onclick="app.setFilter('WARN',this)">⚠️ Warnungen</button>
-      <button class="filter-btn f-pass" data-filter="PASS" onclick="app.setFilter('PASS',this)">✅ Bestanden</button>
-    </div>
-
+  <!-- TEMPLATE: Analyzing -->
+  <template id="tpl-analyzing">
     <div class="card">
-      <div class="check-list" id="cp-check-list"></div>
-    </div>
-  </div>
-</template>
-
-<!-- TEMPLATE: Check Row -->
-<template id="tpl-check-row">
-  <div class="check-row" data-check-id="">
-    <div class="check-row-header" onclick="app.toggleCheck(this.parentElement)">
-      <div class="check-dot"></div>
-      <div class="check-info">
-        <div class="check-id"></div>
-        <div class="check-name"></div>
-        <div class="check-short-detail"></div>
+      <div class="analyzing-card">
+        <div class="spinner"></div>
+        <div class="analyzing-text" id="analyzing-text">Analysiere Archiv…</div>
+        <div class="analyzing-sub" id="analyzing-sub">Bitte warten</div>
+        <div class="progress-bar-wrap" style="max-width:300px;margin:12px auto 0">
+          <div class="progress-bar-fill" id="analyzing-progress" style="width:0%"></div>
+        </div>
       </div>
-      <div class="status-badge"></div>
-      <div class="check-expand-icon">▼</div>
     </div>
-    <div class="check-details">
-      <div class="check-rule-text">
-        <div class="check-rule-label">📋 Regel</div>
-        <div class="check-rule-body"></div>
-        <div class="check-rule-extra"></div>
+  </template>
+
+  <!-- TEMPLATE: Overview page -->
+  <template id="tpl-overview">
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div class="page-title" id="ov-title">Analyse-Ergebnis</div>
       </div>
-      <div class="check-detail-box"></div>
-      <div class="check-ref"></div>
+      <div class="page-sub" id="ov-sub"></div>
+
+      <!-- Verdict Banner -->
+      <div class="verdict-banner" id="ov-verdict">
+        <div class="verdict-icon" id="ov-verdict-icon"></div>
+        <div>
+          <div class="verdict-title" id="ov-verdict-title"></div>
+          <div class="verdict-sub" id="ov-verdict-sub"></div>
+          <div class="verdict-meta" id="ov-verdict-meta"></div>
+        </div>
+      </div>
+
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value sv-total" id="stat-total">0</div>
+          <div class="stat-label">Gesamt</div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill" style="background:var(--border-strong);width:100%"></div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value sv-pass" id="stat-pass">0</div>
+          <div class="stat-label">Bestanden</div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill" style="background:var(--pass)" id="bar-pass"></div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value sv-fail" id="stat-fail">0</div>
+          <div class="stat-label">Fehler</div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill" style="background:var(--fail)" id="bar-fail"></div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value sv-warn" id="stat-warn">0</div>
+          <div class="stat-label">Warnungen</div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill" style="background:var(--warn)" id="bar-warn"></div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value sv-info" id="stat-info">0</div>
+          <div class="stat-label">Info</div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill" style="background:var(--info)" id="bar-info"></div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value sv-skip" id="stat-skip">0</div>
+          <div class="stat-label">Skipped</div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill" style="background:var(--skip)" id="bar-skip"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Meta Info -->
+      <div class="meta-grid">
+        <div class="meta-card">
+          <div class="meta-card-title">📦 Archiv-Info</div>
+          <div id="meta-archive"></div>
+        </div>
+        <div class="meta-card">
+          <div class="meta-card-title">📁 Enthaltene Dateien</div>
+          <div id="meta-files"></div>
+        </div>
+        <div class="meta-card">
+          <div class="meta-card-title">⚙️ Analyse-Parameter</div>
+          <div id="meta-params"></div>
+        </div>
+      </div>
+
     </div>
-  </div>
-</template>
+  </template>
 
-<!-- TEMPLATE: Meta KV Row -->
-<template id="tpl-kv-row">
-  <div class="meta-kv-row">
-    <span class="meta-key"></span>
-    <span class="meta-val"></span>
-  </div>
-</template>
+  <!-- TEMPLATE: Category page -->
+  <template id="tpl-category">
+    <div>
+      <div class="cat-page-header">
+        <button class="btn btn-secondary" onclick="app.navigateTo('files')" style="padding:5px 10px;font-size:12px">←
+          Dateien im Archiv</button>
+        <div>
+          <div class="cat-page-num" id="cp-num"></div>
+          <div class="cat-page-title" id="cp-title"></div>
+        </div>
+      </div>
+      <div class="cat-page-count" id="cp-count"></div>
 
-<!-- TEMPLATE: File Row -->
-<template id="tpl-file-row">
-  <div class="file-row">
-    <span class="file-icon"></span>
-    <span class="file-name"></span>
-    <span class="file-ext"></span>
-    <span class="file-size"></span>
-  </div>
-</template>
+      <!-- Filter Bar -->
+      <div class="filter-bar">
+        <span style="font-size:11px;color:var(--text-muted);font-weight:600">FILTER:</span>
+        <button class="filter-btn active" data-filter="all" onclick="app.setFilter('all',this)">Alle</button>
+        <button class="filter-btn f-fail" data-filter="FAIL" onclick="app.setFilter('FAIL',this)">❌ Fehler</button>
+        <button class="filter-btn f-warn" data-filter="WARN" onclick="app.setFilter('WARN',this)">⚠️ Warnungen</button>
+        <button class="filter-btn f-pass" data-filter="PASS" onclick="app.setFilter('PASS',this)">✅ Bestanden</button>
+      </div>
 
-<!-- TEMPLATE: Overview Category Card -->
-<template id="tpl-ov-cat-card">
-  <div class="overview-cat-card">
-    <div class="overview-cat-header">
-      <div class="overview-cat-name"></div>
-      <div class="overview-cat-id"></div>
+      <div class="card">
+        <div class="check-list" id="cp-check-list"></div>
+      </div>
     </div>
-    <div class="cat-status-bar"></div>
-    <div class="overview-cat-counts"></div>
-  </div>
-</template>
+  </template>
 
-<!-- TEMPLATE: Sidebar Cat Item -->
-<template id="tpl-sidebar-cat">
-  <div class="sidebar-cat-item">
-    <span class="sidebar-cat-name"></span>
-    <div class="sidebar-cat-badges">
-      <div class="sidebar-mini-counts"></div>
+  <!-- TEMPLATE: Check Row -->
+  <template id="tpl-check-row">
+    <div class="check-row" data-check-id="">
+      <div class="check-row-header" onclick="app.toggleCheck(this.parentElement)">
+        <div class="check-dot"></div>
+        <div class="check-info">
+          <div class="check-id"></div>
+          <div class="check-name"></div>
+          <div class="check-short-detail"></div>
+        </div>
+        <div class="status-badge"></div>
+        <div class="check-expand-icon">▼</div>
+      </div>
+      <div class="check-details">
+        <div class="check-rule-text">
+          <div class="check-rule-label">📋 Regel</div>
+          <div class="check-rule-body"></div>
+          <div class="check-rule-extra"></div>
+        </div>
+        <div class="check-detail-box"></div>
+        <div class="check-ref"></div>
+      </div>
     </div>
-  </div>
-</template>
+  </template>
 
-<!-- Scripts (order matters: utilities first, then rules, then app) -->
-<script src="js/utils.js"></script>
-<script src="js/tar-parser.js"></script>
-<script src="js/asn1-parser.js"></script>
-<script src="js/file-checker.js"></script>
-<script src="js/rules/r01-tar-structure.js"></script>
-<script src="js/rules/r02-arch-filename.js"></script>
-<script src="js/rules/r03-info-csv.js"></script>
-<script src="js/rules/r04-arch-content.js"></script>
-<script src="js/rules/r05-cert-export.js"></script>
-<script src="js/rules/r06-cert-single.js"></script>
-<script src="js/rules/r07-cert-chain.js"></script>
-<script src="js/rules/r08-log-common.js"></script>
-<script src="js/rules/r09-syslog.js"></script>
-<script src="js/rules/r10-txn-log.js"></script>
-<script src="js/rules/r11-audit-log.js"></script>
-<script src="js/rules/r12-txn-lifecycle.js"></script>
-<script src="js/rules/r13-sig-verify.js"></script>
-<script src="js/rules/r14-cross-log.js"></script>
-<script src="js/rules/r15-crl-live.js"></script>
-<script src="js/rules/r16-aggregation.js"></script>
-<script src="js/rules/r17-auth-logout.js"></script>
-<script src="js/rules/r18-time-checks.js"></script>
-<script src="js/rules/r19-init-seq.js"></script>
-<script src="js/rules/r20-powerloss.js"></script>
-<script src="js/rules/r21-storage-events.js"></script>
-<script src="js/rules/r22-del-dlm.js"></script>
-<script src="js/rules/r23-data-return.js"></script>
-<script src="js/rules/r24-software-update.js"></script>
-<script src="js/rules/r25-exceptions.js"></script>
-<script src="js/rules/r26-esn.js"></script>
-<script src="js/rules/r27-export-filter.js"></script>
-<script src="js/rules/r28-global-log-timing.js"></script>
-<script src="js/rules/r29-ini-log.js"></script>
-<script src="js/rules/r30-rec-log.js"></script>
-<script src="js/rules/r31-lock-unlock-log.js"></script>
-<script src="js/rules/r32-inline.js"></script>
-<script src="js/rules/r33-restore-backup.js"></script>
-<script src="js/rules/r34-lock-evt.js"></script>
-<script src="js/rules/r35-registration.js"></script>
-<script src="js/rule-runner.js"></script>
-<script src="js/ui-renderer.js"></script>
-<script src="js/app.js"></script>
+  <!-- TEMPLATE: Meta KV Row -->
+  <template id="tpl-kv-row">
+    <div class="meta-kv-row">
+      <span class="meta-key"></span>
+      <span class="meta-val"></span>
+    </div>
+  </template>
+
+  <!-- TEMPLATE: File Row -->
+  <template id="tpl-file-row">
+    <div class="file-row">
+      <span class="file-icon"></span>
+      <span class="file-name"></span>
+      <span class="file-ext"></span>
+      <span class="file-size"></span>
+    </div>
+  </template>
+
+  <!-- TEMPLATE: Overview Category Card -->
+  <template id="tpl-ov-cat-card">
+    <div class="overview-cat-card">
+      <div class="overview-cat-header">
+        <div class="overview-cat-name"></div>
+        <div class="overview-cat-id"></div>
+      </div>
+      <div class="cat-status-bar"></div>
+      <div class="overview-cat-counts"></div>
+    </div>
+  </template>
+
+  <!-- TEMPLATE: Sidebar Cat Item -->
+  <template id="tpl-sidebar-cat">
+    <div class="sidebar-cat-item">
+      <span class="sidebar-cat-name"></span>
+      <div class="sidebar-cat-badges">
+        <div class="sidebar-mini-counts"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Scripts (order matters: utilities first, then rules, then app) -->
+  <script src="js/utils.js"></script>
+  <script src="js/tar-parser.js"></script>
+  <script src="js/asn1-parser.js"></script>
+  <script src="js/file-checker.js"></script>
+  <script src="js/rules/r01-tar-structure.js"></script>
+  <script src="js/rules/r02-arch-filename.js"></script>
+  <script src="js/rules/r03-info-csv.js"></script>
+  <script src="js/rules/r04-arch-content.js"></script>
+  <script src="js/rules/r05-cert-export.js"></script>
+  <script src="js/rules/r06-cert-single.js"></script>
+  <script src="js/rules/r07-cert-chain.js"></script>
+  <script src="js/rules/r08-log-common.js"></script>
+  <script src="js/rules/r09-syslog.js"></script>
+  <script src="js/rules/r10-txn-log.js"></script>
+  <script src="js/rules/r11-audit-log.js"></script>
+  <script src="js/rules/r12-txn-lifecycle.js"></script>
+  <script src="js/rules/r13-sig-verify.js"></script>
+  <script src="js/rules/r14-cross-log.js"></script>
+  <script src="js/rules/r15-crl-live.js"></script>
+  <script src="js/rules/r16-aggregation.js"></script>
+  <script src="js/rules/r17-auth-logout.js"></script>
+  <script src="js/rules/r18-time-checks.js"></script>
+  <script src="js/rules/r19-init-seq.js"></script>
+  <script src="js/rules/r20-powerloss.js"></script>
+  <script src="js/rules/r21-storage-events.js"></script>
+  <script src="js/rules/r22-del-dlm.js"></script>
+  <script src="js/rules/r23-data-return.js"></script>
+  <script src="js/rules/r24-software-update.js"></script>
+  <script src="js/rules/r25-exceptions.js"></script>
+  <script src="js/rules/r26-esn.js"></script>
+  <script src="js/rules/r27-export-filter.js"></script>
+  <script src="js/rules/r28-global-log-timing.js"></script>
+  <script src="js/rules/r29-ini-log.js"></script>
+  <script src="js/rules/r30-rec-log.js"></script>
+  <script src="js/rules/r31-lock-unlock-log.js"></script>
+  <script src="js/rules/r32-inline.js"></script>
+  <script src="js/rules/r33-restore-backup.js"></script>
+  <script src="js/rules/r34-lock-evt.js"></script>
+  <script src="js/rules/r35-registration.js"></script>
+  <script src="js/rule-runner.js"></script>
+  <script src="js/ui-renderer.js"></script>
+  <script src="js/app.js"></script>
 </body>
+
 </html>

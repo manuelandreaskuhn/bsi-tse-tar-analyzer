@@ -2,7 +2,7 @@
 // Direkt aus v1 checkCertChain portiert
 'use strict';
 
-window.RulesCat07 = (function() {
+window.RulesCat07 = (function () {
   const CAT = 'Zertifikatskette (CHAIN)';
 
   // Normalize SKI/AKI: remove colons, uppercase
@@ -37,7 +37,7 @@ window.RulesCat07 = (function() {
       .filter(c => !c.parseError)
       .map(c => ({ ...c, _ct: certType(c) }));
 
-    const roots  = valid.filter(c => c._ct === 'root');
+    const roots = valid.filter(c => c._ct === 'root');
     const subcas = valid.filter(c => c._ct === 'subca');
     const leaves = valid.filter(c => c._ct === 'leaf');
 
@@ -47,17 +47,17 @@ window.RulesCat07 = (function() {
     results.push(
       roots.length > 0 && leaves.length > 0
         ? Utils.pass('CHAIN_COMPLETE',
-            'Zertifikatskette vollständig (Root + [Sub-CA] + TSE-Blatt)', CAT,
-            `Root-CA: ${roots.length}  ·  Sub-CA: ${subcas.length}  ·  TSE-Blatt: ${leaves.length}`,
-            'Die Zertifikatskette muss mindestens ein Root-CA-Zertifikat und ein TSE-Blattzertifikat enthalten.',
-            'BSI TR-03151-1 §10.2')
+          'Zertifikatskette vollständig (Root + [Sub-CA] + TSE-Blatt)', CAT,
+          `Root-CA: ${roots.length}  ·  Sub-CA: ${subcas.length}  ·  TSE-Blatt: ${leaves.length}`,
+          'Die Zertifikatskette muss mindestens ein Root-CA-Zertifikat und ein TSE-Blattzertifikat enthalten.',
+          'BSI TR-03151-1 §10.2')
         : Utils.warn('CHAIN_COMPLETE',
-            'Zertifikatskette vollständig (Root + [Sub-CA] + TSE-Blatt)', CAT,
-            `Root-CA: ${roots.length}  ·  Sub-CA: ${subcas.length}  ·  TSE-Blatt: ${leaves.length}` +
-            (roots.length === 0 ? '\n⚠ Kein Root-CA-Zertifikat gefunden.' : '') +
-            (leaves.length === 0 ? '\n⚠ Kein TSE-Blattzertifikat gefunden.' : ''),
-            'Die Zertifikatskette muss mindestens ein Root-CA-Zertifikat und ein TSE-Blattzertifikat enthalten.',
-            'BSI TR-03151-1 §10.2'));
+          'Zertifikatskette vollständig (Root + [Sub-CA] + TSE-Blatt)', CAT,
+          `Root-CA: ${roots.length}  ·  Sub-CA: ${subcas.length}  ·  TSE-Blatt: ${leaves.length}` +
+          (roots.length === 0 ? '\n⚠ Kein Root-CA-Zertifikat gefunden.' : '') +
+          (leaves.length === 0 ? '\n⚠ Kein TSE-Blattzertifikat gefunden.' : ''),
+          'Die Zertifikatskette muss mindestens ein Root-CA-Zertifikat und ein TSE-Blattzertifikat enthalten.',
+          'BSI TR-03151-1 §10.2'));
 
     // ── CHAIN_AKI_SKI – AKI→SKI Verkettung (§10.2.1) ───────────────────
     const akiLines = [];
@@ -70,7 +70,7 @@ window.RulesCat07 = (function() {
         continue;
       }
       const normAki = normSki(c.akiValue);
-      const parent  = valid.find(px => px !== c && px.skiValue && normSki(px.skiValue) === normAki);
+      const parent = valid.find(px => px !== c && px.skiValue && normSki(px.skiValue) === normAki);
       if (!parent) {
         akiOk = false;
         akiLines.push(`✗ ${fn(c)} [${certLabel(c._ct)}]: AKI=${c.akiValue} – kein Aussteller mit passendem SKI gefunden`);
@@ -80,13 +80,13 @@ window.RulesCat07 = (function() {
     }
     results.push(akiOk
       ? Utils.pass('CHAIN_AKI_SKI', 'AKI→SKI Verkettung (§10.2.1)', CAT,
-          akiLines.join('\n') || 'Keine verkettbaren Zertifikate.',
-          'Für jedes Nicht-Root-Zertifikat muss der AKI-Wert mit dem SKI seines direkten Ausstellers übereinstimmen.',
-          'BSI TR-03151-1 §10.2.1')
+        akiLines.join('\n') || 'Keine verkettbaren Zertifikate.',
+        'Für jedes Nicht-Root-Zertifikat muss der AKI-Wert mit dem SKI seines direkten Ausstellers übereinstimmen.',
+        'BSI TR-03151-1 §10.2.1')
       : Utils.warn('CHAIN_AKI_SKI', 'AKI→SKI Verkettung (§10.2.1)', CAT,
-          akiLines.join('\n') || 'Keine verkettbaren Zertifikate.',
-          'Für jedes Nicht-Root-Zertifikat muss der AKI-Wert mit dem SKI seines direkten Ausstellers übereinstimmen.',
-          'BSI TR-03151-1 §10.2.1'));
+        akiLines.join('\n') || 'Keine verkettbaren Zertifikate.',
+        'Für jedes Nicht-Root-Zertifikat muss der AKI-Wert mit dem SKI seines direkten Ausstellers übereinstimmen.',
+        'BSI TR-03151-1 §10.2.1'));
 
     // ── CHAIN_VALIDITY – Kindsgültigkeit ≤ Ausstellergültigkeit (§10.2.2) ──
     const valLines = [];
@@ -104,18 +104,18 @@ window.RulesCat07 = (function() {
           `✗ ${fn(c)}: Gültigkeit [${fmtD(c.notBefore)}, ${fmtD(c.notAfter)}] überschreitet` +
           ` Ausstellergültigkeit [${fmtD(parent.notBefore)}, ${fmtD(parent.notAfter)}]`);
       } else {
-        valLines.push(`✓ ${fn(c)}: Gültigkeit innerhalb der Ausstellergültigkeit`);
+        valLines.push(`✓ ${fn(c)}: Gültigkeit [${fmtD(c.notBefore)}, ${fmtD(c.notAfter)}] innerhalb der Ausstellergültigkeit [${fmtD(parent.notBefore)}, ${fmtD(parent.notAfter)}]`);
       }
     }
     results.push(valOk
       ? Utils.pass('CHAIN_VALIDITY', 'Kindsgültigkeit ≤ Ausstellergültigkeit (§10.2.2)', CAT,
-          valLines.join('\n') || 'Keine prüfbaren Paare.',
-          'Der Gültigkeitszeitraum eines Zertifikats darf den des direkten Ausstellers nicht überschreiten.',
-          'BSI TR-03151-1 §10.2.2')
+        valLines.join('\n') || 'Keine prüfbaren Paare.',
+        'Der Gültigkeitszeitraum eines Zertifikats darf den des direkten Ausstellers nicht überschreiten.',
+        'BSI TR-03151-1 §10.2.2')
       : Utils.warn('CHAIN_VALIDITY', 'Kindsgültigkeit ≤ Ausstellergültigkeit (§10.2.2)', CAT,
-          valLines.join('\n') || 'Keine prüfbaren Paare.',
-          'Der Gültigkeitszeitraum eines Zertifikats darf den des direkten Ausstellers nicht überschreiten.',
-          'BSI TR-03151-1 §10.2.2'));
+        valLines.join('\n') || 'Keine prüfbaren Paare.',
+        'Der Gültigkeitszeitraum eines Zertifikats darf den des direkten Ausstellers nicht überschreiten.',
+        'BSI TR-03151-1 §10.2.2'));
 
     // ── CHAIN_ISSUER_MATCH – Aussteller-Inhaber-Übereinstimmung (§10.2.1) ──
     const isLines = [];
@@ -133,18 +133,18 @@ window.RulesCat07 = (function() {
           `✗ ${fn(c)}: Issuer "${c.issuerDN?.CN || c.issuerDN?.O}" ≠` +
           ` Subject des Ausstellers "${parent.subjectDN?.CN || parent.subjectDN?.O}"`);
       } else {
-        isLines.push(`✓ ${fn(c)}: Issuer = Subject des Ausstellers`);
+        isLines.push(`✓ ${fn(c)}: Issuer [${JSON.stringify({ CN: c.issuerDN?.CN, O: c.issuerDN?.O })}] = Subject des Ausstellers [${JSON.stringify({ CN: parent.subjectDN?.CN, O: parent.subjectDN?.O })}]`);
       }
     }
     results.push(isOk
       ? Utils.pass('CHAIN_ISSUER_MATCH', 'Aussteller-Inhaber-Übereinstimmung (§10.2.1)', CAT,
-          isLines.join('\n') || 'Keine prüfbaren Paare.',
-          'Der Issuer-DN jedes Nicht-Root-Zertifikats muss mit dem Subject-DN seines direkten Ausstellers übereinstimmen.',
-          'BSI TR-03151-1 §10.2.1')
+        isLines.join('\n') || 'Keine prüfbaren Paare.',
+        'Der Issuer-DN jedes Nicht-Root-Zertifikats muss mit dem Subject-DN seines direkten Ausstellers übereinstimmen.',
+        'BSI TR-03151-1 §10.2.1')
       : Utils.warn('CHAIN_ISSUER_MATCH', 'Aussteller-Inhaber-Übereinstimmung (§10.2.1)', CAT,
-          isLines.join('\n') || 'Keine prüfbaren Paare.',
-          'Der Issuer-DN jedes Nicht-Root-Zertifikats muss mit dem Subject-DN seines direkten Ausstellers übereinstimmen.',
-          'BSI TR-03151-1 §10.2.1'));
+        isLines.join('\n') || 'Keine prüfbaren Paare.',
+        'Der Issuer-DN jedes Nicht-Root-Zertifikats muss mit dem Subject-DN seines direkten Ausstellers übereinstimmen.',
+        'BSI TR-03151-1 §10.2.1'));
 
     return results;
   }

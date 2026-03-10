@@ -9,10 +9,10 @@ window.app = (function () {
     activeFile: null, activeCert: null, activeView: null, allTestsFilter: 'all',
   };
 
-  const $content   = document.getElementById('content');
-  const $sidebar   = document.getElementById('sidebar');
-  const $catList   = document.getElementById('sidebar-cat-list');
-  const $btnReset  = document.getElementById('btn-reset');
+  const $content = document.getElementById('content');
+  const $sidebar = document.getElementById('sidebar');
+  const $catList = document.getElementById('sidebar-cat-list');
+  const $btnReset = document.getElementById('btn-reset');
   const $typeBadge = document.getElementById('header-type-badge');
 
   _showWelcome();
@@ -135,28 +135,36 @@ window.app = (function () {
   }
 
   function _setNavActive(id) {
-    ['nav-overview','nav-files','nav-all-tests'].forEach(nid => {
+    ['nav-overview', 'nav-files', 'nav-all-tests'].forEach(nid => {
       const el = document.getElementById(nid);
       if (el) el.classList.toggle('active', nid === id);
     });
     // Update nav badges
     const rr = S.runResult;
     if (!rr) return;
-    const filesBadge = document.getElementById('nav-files-badge');
-    if (filesBadge) {
-      const allPfr = [...Object.values(rr.perFileResults||{}), ...Object.values(rr.perCertResults||{})].flat();
-      const nf = allPfr.filter(r=>(r.status||'').toUpperCase()==='FAIL').length;
-      const nw = allPfr.filter(r=>(r.status||'').toUpperCase()==='WARN').length;
-      filesBadge.className = 'snav-badge' + (nf?` has-fail`:nw?` has-warn`:` all-pass`);
-      filesBadge.textContent = nf ? `✗ ${nf}` : nw ? `⚠ ${nw}` : '✓';
-      filesBadge.style.display = '';
+    const filesCounts = document.getElementById('nav-files-counts');
+    if (filesCounts) {
+      const allPfr = [...Object.values(rr.perFileResults || {}), ...Object.values(rr.perCertResults || {})].flat();
+      const count = s => allPfr.filter(r => (r.status || '').toUpperCase() === s).length;
+      const nf = count('FAIL'), nw = count('WARN'), np = count('PASS'), ni = count('INFO'), ns = count('SKIP');
+      const parts = [];
+      if (nf > 0) parts.push(`<span class="smc smc-f">✗ ${nf}</span>`);
+      if (nw > 0) parts.push(`<span class="smc smc-w">⚠ ${nw}</span>`);
+      if (np > 0) parts.push(`<span class="smc smc-p">✓ ${np}</span>`);
+      if (ni > 0) parts.push(`<span class="smc smc-i">ℹ ${ni}</span>`);
+      if (ns > 0) parts.push(`<span class="smc smc-s">– ${ns}</span>`);
+      filesCounts.innerHTML = parts.join('');
     }
-    const testsBadge = document.getElementById('nav-all-tests-badge');
-    if (testsBadge) {
-      const nf = rr.stats.fail, nw = rr.stats.warn;
-      testsBadge.className = 'snav-badge' + (nf?` has-fail`:nw?` has-warn`:` all-pass`);
-      testsBadge.textContent = nf ? `✗ ${nf}` : nw ? `⚠ ${nw}` : '✓';
-      testsBadge.style.display = '';
+    const testsCounts = document.getElementById('nav-all-tests-counts');
+    if (testsCounts) {
+      const { fail: nf, warn: nw, pass: np, info: ni, skip: ns } = rr.stats;
+      const parts = [];
+      if (nf > 0) parts.push(`<span class="smc smc-f">✗ ${nf}</span>`);
+      if (nw > 0) parts.push(`<span class="smc smc-w">⚠ ${nw}</span>`);
+      if (np > 0) parts.push(`<span class="smc smc-p">✓ ${np}</span>`);
+      if (ni > 0) parts.push(`<span class="smc smc-i">ℹ ${ni}</span>`);
+      if (ns > 0) parts.push(`<span class="smc smc-s">– ${ns}</span>`);
+      testsCounts.innerHTML = parts.join('');
     }
   }
 
@@ -213,10 +221,12 @@ window.app = (function () {
   }
 
   function reset() {
-    Object.assign(S, { tarResult: null, archiveName: null, archiveType: 'export',
-      runResult: null, activeCat: null, filterStatus: 'all', activeFile: null, activeCert: null });
+    Object.assign(S, {
+      tarResult: null, archiveName: null, archiveType: 'export',
+      runResult: null, activeCat: null, filterStatus: 'all', activeFile: null, activeCert: null
+    });
     $sidebar.style.display = 'none';
-    if ($btnReset)  $btnReset.style.display = 'none';
+    if ($btnReset) $btnReset.style.display = 'none';
     if ($typeBadge) $typeBadge.textContent = '';
     _showWelcome();
   }
@@ -236,7 +246,7 @@ window.app = (function () {
   }
 
   function _esc(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   function setAllTestsFilter(filterValue, btn) {
