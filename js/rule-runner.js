@@ -73,7 +73,7 @@ window.RuleRunner = (function() {
         parsed._filename = name.split('/').pop();
         parsed._path = name;
         parsed._size = entry.size;
-        parsed.parseError = null;
+        // Note: parsed.parseError already set correctly by parseCertificate
         certs.push(parsed);
       } catch (e) {
         certs.push({

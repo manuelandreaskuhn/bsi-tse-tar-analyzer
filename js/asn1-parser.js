@@ -450,27 +450,84 @@ const ASN1 = (() => {
   }
 
   // ── X.509 Certificate Parsing ─────────────────────────────────────────
+  // Direkt portiert aus v1 parseCertDER / decodeDN / decodeBsiTseOID
 
-  const OID_NAMES = {
+  // OID → kurzname für DN-Felder (gleiche Zuordnung wie v1 OID_NAME)
+  const DN_OID_NAMES = {
     '2.5.4.3': 'CN', '2.5.4.6': 'C', '2.5.4.7': 'L', '2.5.4.8': 'ST',
     '2.5.4.10': 'O', '2.5.4.11': 'OU',
-    '2.5.29.14': 'SKI', '2.5.29.15': 'KeyUsage', '2.5.29.17': 'SAN',
-    '2.5.29.19': 'BasicConstraints', '2.5.29.31': 'CRL', '2.5.29.32': 'CertPolicy',
-    '2.5.29.35': 'AKI', '1.3.6.1.5.5.7.1.3': 'PrivKeyUsagePeriod',
-    '1.2.840.10045.4.3.2': 'ecdsa-with-SHA256', '1.2.840.10045.4.3.3': 'ecdsa-with-SHA384',
-    '1.2.840.10045.2.1': 'EC Public Key',
-    '1.3.132.0.34': 'secp384r1 (P-384)', '1.2.840.10045.3.1.7': 'secp256r1 (P-256)',
-    '0.4.0.127.0.7.3.7.2.1': 'BSI-TSE-OID (CSP)',
-    '0.4.0.127.0.7.3.7.2.2': 'BSI-TSE-OID (Storage)',
-    '0.4.0.127.0.7.3.7.2.3': 'BSI-TSE-OID (SecureElement)',
+    '2.5.4.9': 'STREET', '2.5.4.5': 'SERIALNUMBER',
   };
+  const STR_TAGS_DN = [0x0C, 0x13, 0x16, 0x1E, 0x14, 0x15, 0x1A];
+  const BSI_TSE_SUBJECT_OID = '0.4.0.127.0.7.3.10.1.2';
 
-  const BSI_TSE_OID_PREFIX = '0.4.0.127.0.7.3.7.2.';
+  /** Liest PEM oder DER → Uint8Array */
+  function parsePEMorDER(content) {
+    if (!content || content.length === 0) throw new Error('Leerer Inhalt');
+    if (content[0] === 0x2D) { // PEM: starts with '-'
+      const text = new TextDecoder('utf-8', { fatal: false }).decode(content);
+      const m = text.match(/-----BEGIN CERTIFICATE-----\s*([\s\S]+?)\s*-----END CERTIFICATE-----/);
+      if (!m) throw new Error('Kein gültiges PEM-Zertifikat');
+      const bin = atob(m[1].replace(/\s/g, ''));
+      return new Uint8Array(bin.split('').map(c => c.charCodeAt(0)));
+    }
+    if (content[0] === 0x30) return content instanceof Uint8Array ? content : new Uint8Array(content);
+    throw new Error('Unbekanntes Zertifikatformat');
+  }
 
-  function parseCertificate(data) {
-    if (data instanceof ArrayBuffer) data = new Uint8Array(data);
+  /** Dekodiert Distinguished Name.
+   *  String-Werte: UTF-8/ASCII-Text
+   *  Binärwerte (SEQUENCE etc.): '#hexhex' wie in v1 */
+  function decodeDN(buf, start, end) {
+    const dn = {};
+    for (const rdn of parseChildren(buf, start, end)) {
+      if (rdn.tag !== 0x31) continue;
+      for (const av of parseChildren(buf, rdn.valueStart, rdn.valueEnd)) {
+        if (av.tag !== 0x30) continue;
+        const parts = parseChildren(buf, av.valueStart, av.valueEnd);
+        if (parts.length < 2) continue;
+        const oid = readOID(parts[0].value);
+        const vn  = parts[1];
+        let val;
+        if (STR_TAGS_DN.includes(vn.tag)) {
+          val = new TextDecoder('utf-8', { fatal: false }).decode(vn.value);
+        } else {
+          // Non-string (SEQUENCE, etc.) → '#hex' (voller TLV-Blob wie v1)
+          let hex = '';
+          const blob = buf.slice(vn.offset, vn.offset + vn.totalLen);
+          for (const b of blob) hex += b.toString(16).padStart(2, '0');
+          val = '#' + hex;
+        }
+        const key = DN_OID_NAMES[oid] || oid;
+        if (dn[key] === undefined) dn[key] = val;
+      }
+    }
+    return dn;
+  }
+
+  /** Dekodiert BSI-TSE-OID-Wert aus '#hex'-Darstellung im Subject-DN.
+   *  Erwartet SEQUENCE { INTEGER, PrintableString (Zertifizierungs-ID) } */
+  function decodeBsiTseOIDValue(hexVal) {
+    if (!hexVal || !hexVal.startsWith('#')) return null;
+    try {
+      const hex = hexVal.slice(1);
+      const rb  = Uint8Array.from(hex.match(/../g).map(h => parseInt(h, 16)));
+      const seq = readTLV(rb, 0);
+      if (!seq || seq.tag !== 0x30) return null;
+      const kids = parseChildren(seq.value, 0, seq.value.length);
+      if (kids.length >= 2) {
+        return new TextDecoder('utf-8', { fatal: false }).decode(kids[1].value);
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  /** Parst ein X.509-Zertifikat aus Uint8Array (DER oder PEM).
+   *  Gibt Objekt zurück (parseError != null bei Fehler). */
+  function parseCertificate(raw) {
+    if (raw instanceof ArrayBuffer) raw = new Uint8Array(raw);
     const cert = {
-      raw: data,
+      raw,
       version: null,
       serialNumber: null,
       signatureAlgorithm: null,
@@ -481,217 +538,229 @@ const ASN1 = (() => {
       publicKeyOID: null,
       publicKeyCurve: null,
       publicKeyBytes: null,
-      extensions: {},
       isCA: null,
       pathLenConstraint: null,
       keyUsage: null,
       skiValue: null,
       akiValue: null,
-      crlDP: null,
+      crlDistPoints: [],
+      certPolicies: [],
       bsiTseOID: null,
-      subjectCN: null,
+      pkupNotBefore: null,
+      pkupNotAfter: null,
+      extensions: {},
       parseError: null,
     };
 
     try {
-      const outer = readTLV(data, 0);
-      if (!outer || outer.tag !== 0x30) { cert.parseError = 'Kein SEQUENCE'; return cert; }
+      // DER oder PEM laden
+      let der;
+      try { der = parsePEMorDER(raw); }
+      catch (e) { cert.parseError = e.message; return cert; }
+
+      const certTlv = readTLV(der, 0);
+      if (!certTlv || certTlv.tag !== 0x30) { cert.parseError = 'Keine Certificate SEQUENCE'; return cert; }
+
       // Certificate = SEQUENCE { TBSCertificate, signatureAlgorithm, signatureValue }
-      const certFields = parseChildren(data, outer.valueStart, outer.valueEnd);
-      if (certFields.length < 1) { cert.parseError = 'Leer'; return cert; }
+      const certKids = parseChildren(der, certTlv.valueStart, certTlv.valueEnd);
+      if (certKids.length < 1 || certKids[0].tag !== 0x30) { cert.parseError = 'TBSCertificate fehlt'; return cert; }
+      const tbs = certKids[0];
 
-      const tbs = certFields[0];
-      if (tbs.tag !== 0x30) { cert.parseError = 'TBS ist kein SEQUENCE'; return cert; }
-      const tbsFields = parseChildren(data, tbs.valueStart, tbs.valueEnd);
+      // TBSCertificate-Felder
+      const tbsKids = parseChildren(der, tbs.valueStart, tbs.valueEnd);
+      let i = 0;
 
-      let fi = 0;
-      // [0] EXPLICIT version (optional)
-      if (tbsFields[fi] && tbsFields[fi].tag === 0xa0) {
-        const vBytes = parseChildren(data, tbsFields[fi].valueStart, tbsFields[fi].valueEnd);
-        if (vBytes.length > 0) cert.version = readInteger(vBytes[0].value) + 1;
-        fi++;
+      // [0] EXPLICIT version OPTIONAL (default = v1)
+      if (tbsKids[i] && tbsKids[i].tag === 0xA0) {
+        const vn = parseChildren(der, tbsKids[i].valueStart, tbsKids[i].valueEnd);
+        if (vn.length > 0 && vn[0].tag === 0x02) cert.version = readInteger(vn[0].value) + 1;
+        i++;
+      } else {
+        cert.version = 1;
       }
+
       // serialNumber INTEGER
-      if (tbsFields[fi] && tbsFields[fi].tag === 0x02) {
-        cert.serialNumber = readBigInt(tbsFields[fi].value);
-        fi++;
+      if (tbsKids[i] && tbsKids[i].tag === 0x02) { cert.serialNumber = readBigInt(tbsKids[i].value); i++; }
+
+      // signatureAlgorithm SEQUENCE
+      if (tbsKids[i] && tbsKids[i].tag === 0x30) {
+        const algKids = parseChildren(der, tbsKids[i].valueStart, tbsKids[i].valueEnd);
+        if (algKids.length > 0 && algKids[0].tag === 0x06) cert.signatureAlgorithm = readOID(algKids[0].value);
+        i++;
       }
-      // signatureAlgorithm
-      if (tbsFields[fi] && tbsFields[fi].tag === 0x30) {
-        const algFields = parseChildren(data, tbsFields[fi].valueStart, tbsFields[fi].valueEnd);
-        if (algFields.length > 0 && algFields[0].tag === 0x06)
-          cert.signatureAlgorithm = readOID(algFields[0].value);
-        fi++;
-      }
+
       // issuer Name
-      if (tbsFields[fi] && tbsFields[fi].tag === 0x30) {
-        cert.issuerDN = parseDN(data, tbsFields[fi].valueStart, tbsFields[fi].valueEnd);
-        fi++;
+      if (tbsKids[i] && tbsKids[i].tag === 0x30) {
+        cert.issuerDN = decodeDN(der, tbsKids[i].valueStart, tbsKids[i].valueEnd);
+        i++;
       }
+
       // validity Validity
-      if (tbsFields[fi] && tbsFields[fi].tag === 0x30) {
-        const valFields = parseChildren(data, tbsFields[fi].valueStart, tbsFields[fi].valueEnd);
-        if (valFields.length >= 2) {
-          cert.notBefore = parseTime(valFields[0]);
-          cert.notAfter  = parseTime(valFields[1]);
+      if (tbsKids[i] && tbsKids[i].tag === 0x30) {
+        const valKids = parseChildren(der, tbsKids[i].valueStart, tbsKids[i].valueEnd);
+        if (valKids.length >= 2) {
+          cert.notBefore = _parseTime(valKids[0]);
+          cert.notAfter  = _parseTime(valKids[1]);
         }
-        fi++;
+        i++;
       }
+
       // subject Name
-      if (tbsFields[fi] && tbsFields[fi].tag === 0x30) {
-        cert.subjectDN = parseDN(data, tbsFields[fi].valueStart, tbsFields[fi].valueEnd);
-        cert.subjectCN = cert.subjectDN['CN'] || null;
-        fi++;
+      if (tbsKids[i] && tbsKids[i].tag === 0x30) {
+        cert.subjectDN = decodeDN(der, tbsKids[i].valueStart, tbsKids[i].valueEnd);
+        i++;
       }
-      // subjectPublicKeyInfo
-      if (tbsFields[fi] && tbsFields[fi].tag === 0x30) {
-        const pkFields = parseChildren(data, tbsFields[fi].valueStart, tbsFields[fi].valueEnd);
-        if (pkFields.length >= 1 && pkFields[0].tag === 0x30) {
-          const algOIDs = parseChildren(data, pkFields[0].valueStart, pkFields[0].valueEnd);
-          if (algOIDs.length > 0 && algOIDs[0].tag === 0x06) cert.publicKeyOID = readOID(algOIDs[0].value);
+
+      // subjectPublicKeyInfo SEQUENCE
+      if (tbsKids[i] && tbsKids[i].tag === 0x30) {
+        const pkKids = parseChildren(der, tbsKids[i].valueStart, tbsKids[i].valueEnd);
+        if (pkKids.length > 0 && pkKids[0].tag === 0x30) {
+          const algOIDs = parseChildren(der, pkKids[0].valueStart, pkKids[0].valueEnd);
+          if (algOIDs.length > 0 && algOIDs[0].tag === 0x06) cert.publicKeyOID  = readOID(algOIDs[0].value);
           if (algOIDs.length > 1 && algOIDs[1].tag === 0x06) cert.publicKeyCurve = readOID(algOIDs[1].value);
         }
-        if (pkFields.length >= 2 && pkFields[1].tag === 0x03) cert.publicKeyBytes = pkFields[1].value;
-        fi++;
+        if (pkKids.length > 1 && pkKids[1].tag === 0x03) cert.publicKeyBytes = pkKids[1].value;
+        i++;
       }
+
       // [3] EXPLICIT extensions
-      for (let j = fi; j < tbsFields.length; j++) {
-        if (tbsFields[j].tag === 0xa3) {
-          parseExtensions(cert, data, tbsFields[j].valueStart, tbsFields[j].valueEnd);
+      for (let j = i; j < tbsKids.length; j++) {
+        if (tbsKids[j].tag === 0xA3) {
+          _parseExtensions(cert, der, tbsKids[j].valueStart, tbsKids[j].valueEnd);
         }
       }
-    } catch(e) {
+
+      // BSI-TSE-OID aus Subject-DN dekodieren (wie v1 decodeBsiTseOID)
+      const bsiRaw = cert.subjectDN[BSI_TSE_SUBJECT_OID];
+      if (bsiRaw) cert.bsiTseOID = decodeBsiTseOIDValue(bsiRaw) || bsiRaw;
+
+    } catch (e) {
       cert.parseError = 'Parsing-Fehler: ' + e.message;
     }
     return cert;
   }
 
-  function parseDN(buf, start, end) {
-    const dn = {};
-    const rdns = parseChildren(buf, start, end);
-    for (const rdn of rdns) {
-      const attrSets = parseChildren(buf, rdn.valueStart, rdn.valueEnd);
-      for (const attrSet of attrSets) {
-        const attrs = parseChildren(buf, attrSet.valueStart, attrSet.valueEnd);
-        if (attrs.length >= 2 && attrs[0].tag === 0x06) {
-          const oid = readOID(attrs[0].value);
-          const name = OID_NAMES[oid] || oid;
-          dn[name] = readUTF8(attrs[1].value) || readPrintable(attrs[1].value);
-        }
-      }
-    }
-    return dn;
-  }
-
-  function parseTime(tlv) {
+  function _parseTime(tlv) {
     if (tlv.tag === 0x17) return readUTCTime(tlv.value);
     if (tlv.tag === 0x18) return readGeneralizedTime(tlv.value);
     return null;
   }
 
-  function parseExtensions(cert, buf, start, end) {
-    const extSeq = parseChildren(buf, start, end);
-    if (extSeq.length === 0) return;
-    const exts = parseChildren(buf, extSeq[0].valueStart, extSeq[0].valueEnd);
-    for (const ext of exts) {
-      const extFields = parseChildren(buf, ext.valueStart, ext.valueEnd);
-      if (extFields.length === 0 || extFields[0].tag !== 0x06) continue;
-      const oid = readOID(extFields[0].value);
-      const isCritical = extFields.length > 1 && extFields[1].tag === 0x01 && extFields[1].value[0] === 0xff;
-      const valueField = extFields[extFields.length - 1];
-      // The extension value is wrapped in an OCTET STRING
-      let extValue = valueField.value;
-      if (valueField.tag === 0x04) {
-        // parse inner DER
-        try {
-          const inner = readTLV(extValue, 0);
-          if (inner) extValue = inner;
-        } catch {}
-      }
+  /** Extension-Parsing – 1:1 nach v1 parseCertDER.
+   *  start/end sind Offsets in buf innerhalb des [3]-Context-Wrappers. */
+  function _parseExtensions(cert, buf, start, end) {
+    // [3] enthält genau eine SEQUENCE OF Extension
+    const extSeqList = parseChildren(buf, start, end);
+    if (extSeqList.length === 0 || extSeqList[0].tag !== 0x30) return;
+    const extSeq = extSeqList[0];
+    const exts = parseChildren(buf, extSeq.valueStart, extSeq.valueEnd);
 
-      if (oid === '2.5.29.19') { // BasicConstraints
-        const bc = (extValue && extValue.value) ? parseChildren(buf, 0, 0) : null;
-        // extValue.value for the SEQUENCE content
+    for (const ext of exts) {
+      // Extension ::= SEQUENCE { extnID OID, critical BOOLEAN OPTIONAL, extnValue OCTET STRING }
+      const ek = parseChildren(buf, ext.valueStart, ext.valueEnd);
+      if (ek.length === 0 || ek[0].tag !== 0x06) continue;
+      const oid = readOID(ek[0].value);
+      let ei = 1;
+      let critical = false;
+      if (ei < ek.length && ek[ei].tag === 0x01) { critical = ek[ei].value[0] !== 0; ei++; }
+      if (ei >= ek.length || ek[ei].tag !== 0x04) continue;
+      // raw = Inhalt des OCTET STRING (= eigentlicher Extension-Wert als DER)
+      const raw = ek[ei].value;
+      cert.extensions[oid] = { critical, raw };
+
+      // ── Extension-spezifisches Dekodieren ──────────────────────────────
+      if (oid === '2.5.29.19') {          // Basic Constraints
         try {
-          const bcSeq = extValue.value ? parseChildren(extValue.value, 0, extValue.value.length) :
-            (extValue.tag === 0x30 ? parseChildren(buf, extValue.valueStart, extValue.valueEnd) : []);
-          const caFlag = bcSeq.find(f => f.tag === 0x01);
-          cert.isCA = caFlag ? caFlag.value[0] === 0xff : false;
-          const pathLen = bcSeq.find(f => f.tag === 0x02);
-          if (pathLen) cert.pathLenConstraint = readInteger(pathLen.value);
+          const seq = readTLV(raw, 0);
+          if (!seq || seq.tag !== 0x30) continue;
+          for (const k of parseChildren(seq.value, 0, seq.value.length)) {
+            if (k.tag === 0x01) cert.isCA = k.value[0] !== 0;
+            if (k.tag === 0x02) { let v=0; for (const b of k.value) v=v*256+b; cert.pathLenConstraint=v; }
+          }
+          if (cert.isCA === null) cert.isCA = false; // empty SEQUENCE → CA:FALSE
         } catch { cert.isCA = false; }
-      }
-      else if (oid === '2.5.29.15') { // KeyUsage
+
+      } else if (oid === '2.5.29.15') {  // Key Usage
         try {
-          // X.509 BIT STRING: byte[0]=unused bits, byte[1]=key usage flags
-          // bit7(0x80)=digitalSignature, bit2(0x04)=keyCertSign, bit1(0x02)=cRLSign
-          const kuRaw = extValue.value ? extValue.value : null;
-          if (kuRaw && kuRaw.length >= 2) {
-            cert.keyUsage = kuRaw[1]; // raw byte – do NOT shift
+          // BIT STRING: raw = [tag=03, len, unused_bits, flags_byte, ...]
+          const bs = readTLV(raw, 0);
+          if (bs && bs.tag === 0x03 && bs.value.length >= 2) {
+            // value[0] = unused bits count, value[1] = flags byte
+            cert.keyUsage = bs.value[1];
           }
         } catch {}
-      }
-      else if (oid === '2.5.29.14') { // SKI
+
+      } else if (oid === '2.5.29.14') {  // Subject Key Identifier
         try {
-          const skiTlv = extValue.value ? readTLV(extValue.value, 0) : extValue;
-          if (skiTlv && skiTlv.tag === 0x04) cert.skiValue = Utils.hexString(skiTlv.value);
-          else cert.skiValue = Utils.hexString(extValue.value || extValue);
+          // raw = OCTET STRING containing the SKI value directly
+          const n = readTLV(raw, 0);
+          if (n && n.tag === 0x04) cert.skiValue = _hex(n.value);
         } catch {}
-      }
-      else if (oid === '2.5.29.35') { // AKI
+
+      } else if (oid === '2.5.29.35') {  // Authority Key Identifier
         try {
-          const akiSeq = extValue.value ? readTLV(extValue.value, 0) : extValue;
-          if (akiSeq && akiSeq.tag === 0x30) {
-            const akiFields = parseChildren(akiSeq.value, 0, akiSeq.value.length);
-            const ki = akiFields.find(f => f.tag === 0x80);
-            if (ki) cert.akiValue = Utils.hexString(ki.value);
+          // raw = SEQUENCE { [0] keyIdentifier IMPLICIT OCTET STRING, ... }
+          const seq = readTLV(raw, 0);
+          if (seq && seq.tag === 0x30) {
+            for (const k of parseChildren(seq.value, 0, seq.value.length)) {
+              if (k.tag === 0x80) { cert.akiValue = _hex(k.value); break; }
+            }
           }
         } catch {}
-      }
-      else if (oid === '2.5.29.31') { // CRL Distribution Point
+
+      } else if (oid === '2.5.29.31') {  // CRL Distribution Points
         try {
-          // CRLDistributionPoints ::= SEQUENCE OF DistributionPoint
-          const dpSeq = extValue.value ? readTLV(extValue.value, 0) : extValue;
-          const dps = parseChildren(dpSeq.value || dpSeq.value, 0, (dpSeq.value || extValue.value || []).length);
+          // raw = SEQUENCE OF DistributionPoint
+          const dpSeq = readTLV(raw, 0);
+          if (!dpSeq || dpSeq.tag !== 0x30) continue;
           cert.crlDistPoints = [];
-          for (const dp of dps) {
-            // DistributionPoint [0] = distributionPointName
-            const dpFields = parseChildren(dp.value, 0, dp.value.length);
-            for (const dpf of dpFields) {
-              if ((dpf.tag & 0xe0) === 0xa0) { // [0] context
-                // fullName [0] SEQUENCE OF GeneralName
-                const gnSeq = parseChildren(dpf.value, 0, dpf.value.length);
-                for (const gn of gnSeq) {
-                  if (gn.tag === 0x86) { // [6] uniformResourceIdentifier
-                    cert.crlDistPoints.push(new TextDecoder().decode(gn.value));
+          for (const dp of parseChildren(dpSeq.value, 0, dpSeq.value.length)) {
+            // DistributionPoint ::= SEQUENCE { [0] distributionPointName, ... }
+            for (const dpf of parseChildren(dp.value, 0, dp.value.length)) {
+              if (dpf.tag !== 0xA0) continue; // [0] distributionPointName
+              for (const gn of parseChildren(dpf.value, 0, dpf.value.length)) {
+                if (gn.tag !== 0xA0) continue; // [0] fullName
+                for (const name of parseChildren(gn.value, 0, gn.value.length)) {
+                  if (name.tag === 0x86) { // [6] uniformResourceIdentifier
+                    cert.crlDistPoints.push(new TextDecoder('utf-8').decode(name.value));
                   }
                 }
               }
             }
           }
-          if (cert.crlDistPoints.length === 0) cert.crlDP = oid; // fallback
-        } catch { cert.crlDP = oid; cert.crlDistPoints = []; }
-      }
-      else if (oid === '2.5.29.32') { // Certificate Policies
+        } catch { cert.crlDistPoints = []; }
+
+      } else if (oid === '2.5.29.32') {  // Certificate Policies
         try {
-          const cpSeq = extValue.value ? readTLV(extValue.value, 0) : extValue;
-          const pols  = parseChildren(cpSeq.value || extValue.value || [], 0,
-                         (cpSeq.value || extValue.value || []).length);
+          const seq = readTLV(raw, 0);
+          if (!seq || seq.tag !== 0x30) continue;
           cert.certPolicies = [];
-          for (const pol of pols) {
-            const polFields = parseChildren(pol.value, 0, pol.value.length);
-            if (polFields.length > 0 && polFields[0].tag === 0x06) {
-              cert.certPolicies.push(readOID(polFields[0].value));
-            }
+          for (const pi of parseChildren(seq.value, 0, seq.value.length)) {
+            const pik = parseChildren(pi.value, 0, pi.value.length);
+            if (pik.length > 0 && pik[0].tag === 0x06) cert.certPolicies.push(readOID(pik[0].value));
           }
         } catch { cert.certPolicies = []; }
+
+      } else if (oid === '1.3.6.1.5.5.7.1.16' || oid === '2.5.29.16') { // Private Key Usage Period
+        try {
+          const seq = readTLV(raw, 0);
+          if (!seq || seq.tag !== 0x30) continue;
+          for (const k of parseChildren(seq.value, 0, seq.value.length)) {
+            if (k.tag === 0x80) cert.pkupNotBefore = readGeneralizedTime(k.value);
+            if (k.tag === 0x81) cert.pkupNotAfter  = readGeneralizedTime(k.value);
+          }
+        } catch {}
       }
-      else if (oid.startsWith(BSI_TSE_OID_PREFIX)) {
-        cert.bsiTseOID = oid;
-      }
-      cert.extensions[oid] = { isCritical, rawValue: extValue };
     }
   }
+
+  /** Hex-String aus Uint8Array (colon-frei, wie v1 a1hex) */
+  function _hex(bytes) {
+    let h = '';
+    for (const b of bytes) h += b.toString(16).padStart(2, '0');
+    return h;
+  }
+
 
   // ── Info.csv Parser ───────────────────────────────────────────────────
 
@@ -738,9 +807,9 @@ const ASN1 = (() => {
   return {
     readTLV, parseChildren, readOID, readInteger, readBigInt,
     readUTF8, readPrintable, readGeneralizedTime, readUTCTime,
-    parseLogMessage, parseCertificate, parseInfoCsv,
+    parseLogMessage, parseCertificate, parsePEMorDER, parseInfoCsv,
     LOG_OID_TXN, LOG_OID_SYS, LOG_OID_AUDIT,
     SIG_OID_SHA256, SIG_OID_SHA384,
-    OID_NAMES, BSI_TSE_OID_PREFIX,
+    DN_OID_NAMES, BSI_TSE_SUBJECT_OID,
   };
 })();
