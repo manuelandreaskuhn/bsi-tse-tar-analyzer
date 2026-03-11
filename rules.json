@@ -862,6 +862,22 @@
     "category": "Allgemeine Log-Prüfungen (LOG)",
     "rule": "Der Dateiname eines finishTransaction-Logs muss eine korrekte Kombination aus Transaktionsnummer und signatureCounter enthalten und dem allgemeinen LOG_TXN_FNAME-Schema entsprechen."
   },
+  "NO_LOG_AUDIT_IN_TXN": {
+    "name": "Keine AuditLogMessage in Transaktions-Logs",
+    "rule": "In Transaktions-Log-Nachrichten (startTransaction, updateTransaction, finishTransaction) darf das Feld seAuditData nicht vorhanden sein. Dieses Feld ist ausschließlich für AuditLogMessage vorgesehen.",
+    "pass_text": "seAuditData-Feld in keiner Transaktions-Log-Nachricht vorhanden.",
+    "fail_text": "Mindestens eine Transaktions-Log-Nachricht enthält ein seAuditData-Feld.",
+    "ref": "BSI TR-03151-1 §5.3 (Log-Nachrichten-Struktur); EXP_LOG_30",
+    "category": "Allgemeine Log-Prüfungen (LOG)"
+  },
+  "NO_LOG_AUDIT_IN_SYS": {
+    "name": "Keine AuditLogMessage in System-Logs",
+    "rule": "In System-Log-Nachrichten (SystemLogMessage) darf das Feld seAuditData nicht vorhanden sein. Dieses Feld ist ausschließlich für AuditLogMessage vorgesehen.",
+    "pass_text": "seAuditData-Feld in keiner System-Log-Nachricht vorhanden.",
+    "fail_text": "Mindestens eine System-Log-Nachricht enthält ein seAuditData-Feld.",
+    "ref": "BSI TR-03151-1 §5.3 (Log-Nachrichten-Struktur); EXP_LOG_30",
+    "category": "Allgemeine Log-Prüfungen (LOG)"
+  },
   "LOG_AUDIT_DATA": {
     "name": "seAuditData vorhanden",
     "rule": "Das Feld seAuditData (OCTET STRING, direkt in der ASN.1-Struktur nach dem Signaturalgorithmus) ist ein Pflichtfeld der AuditLogMessage. Enthält CSP-spezifische Audit-Daten.",
