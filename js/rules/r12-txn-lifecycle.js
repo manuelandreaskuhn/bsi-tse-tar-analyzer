@@ -155,5 +155,10 @@ window.RulesCat12 = (function() {
     return results;
   }
 
-  return { run, CAT };
+  function createCTX(globalCtx) {
+    const { parsedLogs, archiveType } = globalCtx;
+    return { parsedLogs, archiveType };
+  }
+
+  return { run, createCTX, CAT };
 })();

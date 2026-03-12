@@ -11,6 +11,11 @@ window.RulesCat33 = (function() {
         ? Utils.info(id, id, CAT, 'Restore/Backup-TAR erkannt. Vollständige Prüfung erfordert Vergleich mit Original-TAR und TSE-Konfiguration.', '', 'BSI TR-03153-1 §13')
         : Utils.skip(id, id, CAT, 'Kein Restore/Backup-TAR erkannt (Archivname enthält kein "restore"/"backup").', '', 'BSI TR-03153-1 §13'));
   }
-  return { run, CAT };
+
+  function createCTX(globalCtx) {
+    return { archiveName: globalCtx.archiveName };
+  }
+
+  return { run, createCTX, CAT };
 })();
 

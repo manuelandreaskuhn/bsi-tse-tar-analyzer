@@ -113,5 +113,10 @@ window.RulesCat04 = (function() {
     return results;
   }
 
-  return { run, CAT };
+  function createCTX(globalCtx) {
+    const { tarResult, archiveType } = globalCtx;
+    return { tarResult, archiveType };
+  }
+
+  return { run, createCTX, CAT };
 })();

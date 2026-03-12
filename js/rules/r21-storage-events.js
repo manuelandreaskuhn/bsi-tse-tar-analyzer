@@ -301,5 +301,11 @@ window.RulesCat21 = (function() {
 
     return results;
   }
-  return { run, CAT };
+
+  function createCTX(globalCtx) {
+    const { parsedLogs, archiveType } = globalCtx;
+    return { parsedLogs, archiveType, icsProfile: globalCtx.icsProfile ?? null };
+  }
+
+  return { run, createCTX, CAT };
 })();

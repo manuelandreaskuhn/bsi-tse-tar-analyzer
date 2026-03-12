@@ -306,5 +306,10 @@ window.RulesCat06 = (function() {
     }
   }
 
-  return { run, CAT };
+  function createCTX(globalCtx) {
+    const { tarResult, parsedCerts } = globalCtx;
+    return { tarResult, parsedCerts };
+  }
+
+  return { run, createCTX, CAT };
 })();

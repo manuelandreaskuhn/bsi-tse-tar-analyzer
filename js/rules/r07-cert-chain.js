@@ -149,5 +149,9 @@ window.RulesCat07 = (function () {
     return results;
   }
 
-  return { run, CAT };
+  function createCTX(globalCtx) {
+    return { parsedCerts: globalCtx.parsedCerts };
+  }
+
+  return { run, createCTX, CAT };
 })();

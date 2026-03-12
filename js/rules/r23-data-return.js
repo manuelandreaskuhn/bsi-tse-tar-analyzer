@@ -68,5 +68,11 @@ window.RulesCat23 = (function() {
           'Keine TransactionLogs im Archiv (readData ohne Transaktionsdaten).', '', 'BSI TR-03153-1 §11'));
     return results;
   }
-  return { run, CAT };
+
+  function createCTX(globalCtx) {
+    const { parsedLogs, archiveType } = globalCtx;
+    return { parsedLogs, archiveType };
+  }
+
+  return { run, createCTX, CAT };
 })();

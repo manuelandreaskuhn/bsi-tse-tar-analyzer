@@ -113,5 +113,11 @@ window.RulesCat22 = (function() {
 
     return results;
   }
-  return { run, CAT };
+
+  function createCTX(globalCtx) {
+    const { parsedLogs, tarResult, archiveType, archiveName } = globalCtx;
+    return { parsedLogs, tarResult, archiveType, archiveName };
+  }
+
+  return { run, createCTX, CAT };
 })();

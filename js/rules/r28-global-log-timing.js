@@ -70,6 +70,12 @@ window.RulesCat28 = (function() {
     }
     return results;
   }
-  return { run, CAT };
+
+  function createCTX(globalCtx) {
+    const { parsedLogs, tarResult, archiveType } = globalCtx;
+    return { parsedLogs, tarResult, archiveType };
+  }
+
+  return { run, createCTX, CAT };
 })();
 

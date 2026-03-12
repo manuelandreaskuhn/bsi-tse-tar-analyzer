@@ -73,6 +73,12 @@ window.RulesCat26 = (function() {
 
     return results;
   }
-  return { run, CAT };
+
+  function createCTX(globalCtx) {
+    const { parsedLogs, parsedCerts, archiveType } = globalCtx;
+    return { parsedLogs, parsedCerts, archiveType };
+  }
+
+  return { run, createCTX, CAT };
 })();
 

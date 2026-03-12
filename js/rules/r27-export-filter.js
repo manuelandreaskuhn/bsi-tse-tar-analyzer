@@ -12,6 +12,11 @@ window.RulesCat27 = (function() {
         'Export-Filter-Prüfungen erfordern die beim Export verwendeten Filter-Parameter (Laufzeit-Kontext). Statische TAR-Analyse kann nur den tatsächlichen Inhalt auflisten.',
         '', 'BSI TR-03153-1 §8'));
   }
-  return { run, CAT };
+
+  function createCTX(_globalCtx) {
+    return {};
+  }
+
+  return { run, createCTX, CAT };
 })();
 

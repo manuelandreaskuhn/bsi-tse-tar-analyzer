@@ -382,5 +382,10 @@ window.RulesCat08 = (function() {
     return results;
   }
 
-  return { run, CAT };
+  function createCTX(globalCtx) {
+    const { parsedLogs, archiveType, parsedCerts } = globalCtx;
+    return { parsedLogs, archiveType, parsedCerts };
+  }
+
+  return { run, createCTX, CAT };
 })();

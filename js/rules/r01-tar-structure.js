@@ -115,5 +115,9 @@ window.RulesCat01 = (function() {
     return results;
   }
 
-  return { run, CAT };
+  function createCTX(globalCtx) {
+    return { tarResult: globalCtx.tarResult };
+  }
+
+  return { run, createCTX, CAT };
 })();

@@ -18,5 +18,10 @@ window.RulesCat15 = (function() {
         'Kein CA-Zertifikat der Kette darf widerrufen sein.', 'BSI TR-03116-5'),
     ];
   }
-  return { run, CAT };
+
+  function createCTX(_globalCtx) {
+    return {};
+  }
+
+  return { run, createCTX, CAT };
 })();

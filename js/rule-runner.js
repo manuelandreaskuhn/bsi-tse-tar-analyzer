@@ -90,18 +90,16 @@ window.RuleRunner = (function() {
   }
 
   /**
-   * Run all rule categories against the given archive
+   * Build the shared rule context from raw input.
    * @param {Object} input  { tarResult, archiveName, archiveType }
-   * @returns {Object}  { results, byCategory, stats, parsedLogs, parsedCerts, tarResult, infoRows, perFileResults, perCertResults }
+   * @returns {Object}  ctx  { tarResult, archiveName, archiveType, parsedLogs, parsedCerts, infoRows }
    */
-  function runAll(input) {
+  function buildCTX(input) {
     const { tarResult, archiveName, archiveType } = input;
 
-    // Parse logs & certs once
     const parsedLogs  = parseAllLogs(tarResult);
     const parsedCerts = parseAllCerts(tarResult);
 
-    // Parse info.csv
     let infoRows = null;
     if (tarResult) {
       for (const [k, entry] of tarResult.files) {
@@ -117,15 +115,17 @@ window.RuleRunner = (function() {
       }
     }
 
-    // Build context for rule modules
-    const ctx = {
-      tarResult,
-      archiveName,
-      archiveType,
-      parsedLogs,
-      parsedCerts,
-      infoRows,
-    };
+    return { tarResult, archiveName, archiveType, parsedLogs, parsedCerts, infoRows };
+  }
+
+  /**
+   * Run all rule categories against the given archive
+   * @param {Object} input  { tarResult, archiveName, archiveType }
+   * @returns {Object}  { results, byCategory, stats, parsedLogs, parsedCerts, tarResult, infoRows, perFileResults, perCertResults }
+   */
+  function runAll(input) {
+    const ctx = buildCTX(input);
+    const { tarResult, parsedLogs, parsedCerts, infoRows } = ctx;
 
     // Collect all results
     const results = [];
@@ -135,7 +135,8 @@ window.RuleRunner = (function() {
       if (!mod || typeof mod.run !== 'function') continue;
       let catResults;
       try {
-        catResults = mod.run(ctx);
+        const localCtx = typeof mod.createCTX === 'function' ? mod.createCTX(ctx) : ctx;
+        catResults = mod.run(localCtx);
       } catch (e) {
         catResults = [{
           id: 'RUNNER_ERROR',
@@ -207,5 +208,5 @@ window.RuleRunner = (function() {
     return { results, byCategory, stats, parsedLogs, parsedCerts, tarResult, infoRows, perFileResults, perCertResults };
   }
 
-  return { runAll };
+  return { buildCTX, runAll };
 })();

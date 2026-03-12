@@ -114,5 +114,10 @@ window.RulesCat02 = (function() {
     return results;
   }
 
-  return { run, CAT };
+  function createCTX(globalCtx) {
+    const { archiveName, archiveType } = globalCtx;
+    return { archiveName, archiveType };
+  }
+
+  return { run, createCTX, CAT };
 })();
