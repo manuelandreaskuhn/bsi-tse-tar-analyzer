@@ -63,7 +63,7 @@ window.RulesCat14 = (function () {
     const monoFails = [];
     for (let i = 1; i < withTime.length; i++) {
       if (withTime[i].signatureCreationTime < withTime[i - 1].signatureCreationTime)
-        monoFails.push(`Ctr=${withTime[i].signatureCounter}: Zeit < Ctr=${withTime[i - 1].signatureCounter}`);
+        monoFails.push(`Ctr=${withTime[i].signatureCounter} (${withTime[i].signatureCreationTime}): Zeit < Ctr=${withTime[i - 1].signatureCounter} (${withTime[i - 1].signatureCreationTime})`);
     }
     results.push(monoFails.length === 0
       ? Utils.pass('CROSS_LOG_TIME_MONO', 'Monoton steigende signatureCreationTime', CAT,
