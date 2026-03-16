@@ -30,7 +30,7 @@ window.RulesCat09 = (function () {
       for (const id of ['LOG_EVTYPE', 'LOG_ORIGIN', 'LOG_TRIGGER', 'LOG_EVDATA', 'SYSLOG_RULES',
         'SYS_EVT_STARTAUDIT_FIRST', 'SYS_EVT_SECURE_PAIRS', 'SYS_EVT_UPDATETIME_GAP',
         'SYS_EVT_LOGOUT_PRESENT', 'SYS_EVT_SELFTEST_PRESENT', 'EVDATA_STARTAUDIT',
-        'EVDATA_EXITSECURE', 'EVDATA_UPDATETIME', 'EVDATA_ENTERSTATE_TIMEOFEVENT', 'EVDATA_AUTH_RESULT', 'EVDATA_AUTH_RETRIES']) {
+        'EVDATA_EXITSECURE', 'EVDATA_ENTERSTATE_TIMEOFEVENT', 'EVDATA_AUTH_RESULT', 'EVDATA_AUTH_RETRIES']) {
         results.push(Utils.skip(id, id, CAT, 'Keine SystemLog-Dateien vorhanden.', '', 'BSI TR-03151-1'));
       }
       return results;
@@ -269,22 +269,6 @@ window.RulesCat09 = (function () {
           `${notEmpty.length} exitSecureState-Logs mit nicht-leerem eventData: ${notEmpty.map(l => l._filename).join(', ')}`,
           'eventData muss leer oder eine leere SEQUENCE (0x30 0x00) sein.',
           'BSI TR-03151-1 §5.4'));
-    }
-
-    // EVDATA_UPDATETIME – seTimeAfterUpdate in updateTime logs (parsed in r18-time-checks.js)
-    const udtLogsAll = sysLogsAll.filter(l => l.eventType === 'updateTime');
-    if (udtLogsAll.length === 0) {
-      results.push(Utils.skip('EVDATA_UPDATETIME', 'seTimeAfterUpdate in updateTime-Ereignissen', CAT,
-        'Keine updateTime-Logs.', '', 'BSI TR-03151-1 §5.4'));
-    } else {
-      const noTime = udtLogsAll.filter(l => !l.seTimeAfterUpdate && !l.udtSeAfter);
-      results.push(noTime.length === 0
-        ? Utils.pass('EVDATA_UPDATETIME', 'seTimeAfterUpdate in updateTime-Ereignissen vorhanden', CAT,
-          `Alle ${udtLogsAll.length} updateTime-Logs: seTimeAfterUpdate-Feld vorhanden.`,
-          'UpdateTimeEventData muss seTimeAfterUpdate enthalten.', 'BSI TR-03151-1 §5.4')
-        : Utils.warn('EVDATA_UPDATETIME', 'seTimeAfterUpdate in updateTime-Ereignissen vorhanden', CAT,
-          `${noTime.length} updateTime-Logs ohne erkanntes seTimeAfterUpdate-Feld.`,
-          'UpdateTimeEventData muss seTimeAfterUpdate enthalten.', 'BSI TR-03151-1 §5.4'));
     }
 
     // EVDATA_ENTERSTATE_TIMEOFEVENT – timeOfEvent in enterSecureState eventData

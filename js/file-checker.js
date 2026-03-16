@@ -317,14 +317,6 @@ window.FileChecker = (function() {
             : '✗ eventData bei exitSecureState muss leer sein (30 00), gefunden: ' + f.eventDataLen + ' Byte',
           'BSI TR-03151-1 SystemLogMessage eventData; SM_LOG_06');
       }
-      if (f.eventType === 'updateTime') {
-        p('EVDATA_UPDATETIME', 'eventData: seTimeAfterUpdate vorhanden (updateTime)',
-          f.eventDataHasTimeValue ? 'pass' : 'fail',
-          f.eventDataHasTimeValue
-            ? '✓ seTimeAfterUpdate-Zeitwert in eventData vorhanden'
-            : '✗ seTimeAfterUpdate fehlt in eventData – Pflichtfeld für updateTime',
-          'BSI TR-03151-1 SystemLogMessage updateTime; SM_TME_01');
-      }
       if (f.eventType === 'authenticateUser' || f.eventType === 'authenticateSmaAdmin') {
         const hasResult    = f.eventDataAuthResult !== undefined || f.eventDataAuthResultEnum !== undefined;
         const resultStr    = f.eventDataAuthResultStr

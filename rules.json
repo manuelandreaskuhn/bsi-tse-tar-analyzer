@@ -712,16 +712,6 @@
     "ref": "BSI TR-03151-1 SystemLogMessage eventData; SM_LOG_06",
     "category": "EventData-Inhalt (EVDATA)"
   },
-  "EVDATA_UPDATETIME": {
-    "name": "seTimeAfterUpdate in updateTime-Ereignissen",
-    "trigger": "SystemLog-Nachricht mit eventType = updateTime.",
-    "rule": "Das eventData-Feld muss das Datenelement seTimeAfterUpdate",
-    "pass_text": "seTimeAfterUpdate ist im eventData-Feld vorhanden und",
-    "warn_text": "seTimeAfterUpdate vorhanden, aber Zeitwert nicht parsbar.",
-    "fail_text": "seTimeAfterUpdate fehlt im eventData-Feld.",
-    "ref": "BSI TR-03151-1 SystemLogMessage updateTime; SM_TME_01",
-    "category": "EventData-Inhalt (EVDATA)"
-  },
   "EVDATA_ENTERSTATE_TIMEOFEVENT": {
     "name": "timeOfEvent bei enterSecureState (Format)",
     "trigger": "SystemLog-Nachricht mit eventType = enterSecureState, in der",
