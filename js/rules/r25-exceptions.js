@@ -74,7 +74,7 @@ window.RulesCat25 = (function() {
           if (typeof ASN1 !== 'undefined') {
             const outer = ASN1.readTLV(bytes, 0);
             if (outer && outer.tag === 0x30) {
-              const inner = ASN1.readTLV(bytes, outer.start + outer.headerLen);
+              const inner = ASN1.readTLV(bytes, outer.valueStart);
               if (!inner || inner.tag !== 0x30) certErrors.push(`${certPath}: TBSCertificate nicht als SEQUENCE erkannt`);
             }
           }

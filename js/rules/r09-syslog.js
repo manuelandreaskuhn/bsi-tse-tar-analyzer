@@ -332,32 +332,15 @@ window.RulesCat09 = (function () {
         'Keine enterSecureState-Logs.', '', 'BSI TR-03151-1 §5.4'));
     } else {
       // EnterSecureStateEventData: SEQUENCE { timeOfEvent GeneralizedTime }
-      // Try to parse eventData as ASN.1: SEQUENCE containing a GeneralizedTime
-      const parseErrors = [];
-      const noTimeField = [];
-      for (const log of enterLogs) {
-        if (!log.eventData || log.eventData.length < 4) { noTimeField.push(log._filename); continue; }
-        try {
-          const seq = ASN1.readTLV(log.eventData, 0);
-          if (!seq || seq.tag !== 0x30) { noTimeField.push(log._filename); continue; }
-          const inner = ASN1.readTLV(log.eventData, seq.start + seq.headerLen);
-          // GeneralizedTime tag = 0x18, UTCTime = 0x17
-          if (!inner || (inner.tag !== 0x18 && inner.tag !== 0x17)) {
-            noTimeField.push(log._filename);
-          }
-        } catch (e) { parseErrors.push(log._filename); }
-      }
-      results.push(noTimeField.length === 0 && parseErrors.length === 0
+      // Parser sets l.timeOfEvent (Date) for every enterSecureState log
+      const noTimeField = enterLogs.filter(l => l.timeOfEvent == null).map(l => l._filename);
+      results.push(noTimeField.length === 0
         ? Utils.pass('EVDATA_ENTERSTATE_TIMEOFEVENT', 'timeOfEvent in enterSecureState-Ereignissen', CAT,
           `Alle ${enterLogs.length} enterSecureState-Logs: EnterSecureStateEventData mit timeOfEvent (GeneralizedTime/UTCTime) korrekt erkannt.`,
           'EnterSecureStateEventData muss timeOfEvent als GeneralizedTime oder UTCTime enthalten.', 'BSI TR-03151-1 §5.4')
-        : noTimeField.length > 0
-          ? Utils.fail('EVDATA_ENTERSTATE_TIMEOFEVENT', 'timeOfEvent in enterSecureState-Ereignissen', CAT,
-            `${noTimeField.length} enterSecureState-Logs ohne erkennbares timeOfEvent-Feld: ${noTimeField.join(', ')}`,
-            'EnterSecureStateEventData muss timeOfEvent enthalten.', 'BSI TR-03151-1 §5.4')
-          : Utils.warn('EVDATA_ENTERSTATE_TIMEOFEVENT', 'timeOfEvent in enterSecureState-Ereignissen', CAT,
-            `${parseErrors.length} enterSecureState-Logs mit ASN.1-Parse-Fehler: ${parseErrors.join(', ')}`,
-            'EnterSecureStateEventData muss timeOfEvent enthalten.', 'BSI TR-03151-1 §5.4'));
+        : Utils.fail('EVDATA_ENTERSTATE_TIMEOFEVENT', 'timeOfEvent in enterSecureState-Ereignissen', CAT,
+          `${noTimeField.length} enterSecureState-Logs ohne erkennbares timeOfEvent-Feld: ${noTimeField.join(', ')}`,
+          'EnterSecureStateEventData muss timeOfEvent enthalten.', 'BSI TR-03151-1 §5.4'));
     }
     // EVDATA_AUTH_RESULT – AuthenticationEventData: SEQUENCE { authenticationResult BOOLEAN, remainingRetries INTEGER OPTIONAL }
     const authLogs = sysLogsAll.filter(l => l.eventType === 'authenticateUser');
