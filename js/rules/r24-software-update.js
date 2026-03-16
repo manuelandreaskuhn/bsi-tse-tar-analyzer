@@ -288,33 +288,49 @@ window.RulesCat24 = (function() {
             `eventOrigin muss ∈ {${validSteOrigins.join(', ')}} sein.`, REF));
 
       // STE_EVDATA_STRUCT: parse SelfTestEventData
-      // SelfTestEventData ::= SEQUENCE { allTestsArePositive BOOLEAN, selfTestResults SEQUENCE OF SEQUENCE { UTF8String, BOOLEAN } }
+      // Actual structure (flat, NOT wrapped in outer SEQUENCE):
+      //   [0] 0x30  SelfTestResultSet (SEQUENCE OF SelfTestResult)
+      //   [1] 0x01  allTestsArePositive BOOLEAN
+      // Use pre-parsed fields from ASN1 parser: l.selfTestAllPassed, l.selfTestResults
       let structOk = 0, structFail = [], consistent = 0, inconsistent = [];
       for (const l of steLogs) {
-        const p = parseEvtData(l);
-        if (p.error || p.isEmpty || p.kids.length < 1) {
-          structFail.push(`${l._filename}: ${p.error||'Keine Felder'}`);
+        // Pre-parsed fields from asn1-parser.js take priority
+        if (l.selfTestAllPassed != null) {
+          structOk++;
+          // Check consistency: allTestsArePositive must match individual results
+          if (l.selfTestResults && l.selfTestResults.length > 0) {
+            const allIndivOk = l.selfTestResults.every(r => r.passed === true);
+            if (l.selfTestAllPassed === allIndivOk) consistent++;
+            else inconsistent.push(`${l._filename}: allTestsArePositive=${l.selfTestAllPassed}, Einzelergebnisse=${l.selfTestResults.map(r=>r.passed?'OK':'FAIL').join(',')}`);
+          } else {
+            consistent++; // no individual results → consistent by definition
+          }
           continue;
         }
-        const boolKid = p.kids.find(k=>k.tag===0x01);
-        const seqKid  = p.kids.find(k=>k.tag===0x30);
-        if (!boolKid) { structFail.push(`${l._filename}: allTestsArePositive fehlt`); continue; }
-        structOk++;
-        // STE_EVDATA_CONSISTENT: allTestsArePositive must match individual results
-        const allPositive = boolKid.value && boolKid.value[0] !== 0;
-        if (seqKid) {
-          const tests = ASN1.parseChildren(seqKid.value, 0, seqKid.value.length);
-          const indivResults = tests.map(t=>{
-            const tk = ASN1.parseChildren(t.value, 0, t.value.length);
-            const b = tk.find(k=>k.tag===0x01);
-            return b ? (b.value[0]!==0) : null;
-          }).filter(v=>v!==null);
-          const allIndivOk = indivResults.every(v=>v===true);
-          if (allPositive === allIndivOk) consistent++;
-          else inconsistent.push(`${l._filename}: allTestsArePositive=${allPositive}, Einzelergebnisse=${indivResults.map(v=>v?'OK':'FAIL').join(',')}`);
-        } else {
-          consistent++; // no subtests, just flag → consistent by definition
+        // Fallback: manual parse if pre-parsed fields are missing
+        if (!l.eventData || l.eventData.length === 0) {
+          structFail.push(`${l._filename}: keine eventData`); continue;
         }
+        try {
+          // Parse eventData FLAT to get [SEQ(ResultSet), BOOL(allTestsArePositive)]
+          const flatKids = ASN1.parseChildren(l.eventData, 0, l.eventData.length);
+          const boolKid = flatKids.find(k => k.tag === 0x01);
+          const seqKid  = flatKids.find(k => k.tag === 0x30);
+          if (!boolKid) { structFail.push(`${l._filename}: allTestsArePositive fehlt`); continue; }
+          structOk++;
+          const allPositive = boolKid.value && boolKid.value[0] !== 0;
+          if (seqKid) {
+            const tests = ASN1.parseChildren(seqKid.value, 0, seqKid.value.length);
+            const indivResults = tests.map(t => {
+              const tk = ASN1.parseChildren(t.value, 0, t.value.length);
+              const b = tk.find(k => k.tag === 0x01);
+              return b ? (b.value[0] !== 0) : null;
+            }).filter(v => v !== null);
+            const allIndivOk = indivResults.every(v => v === true);
+            if (allPositive === allIndivOk) consistent++;
+            else inconsistent.push(`${l._filename}: allTestsArePositive=${allPositive}, Einzelergebnisse=${indivResults.map(v=>v?'OK':'FAIL').join(',')}`);
+          } else { consistent++; }
+        } catch(e) { structFail.push(`${l._filename}: ${e.message}`); }
       }
       results.push(structFail.length === 0
         ? Utils.pass('STE_EVDATA_STRUCT', 'SelfTestEventData-Struktur vorhanden', CAT,

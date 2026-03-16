@@ -481,34 +481,41 @@ const ASN1 = (() => {
           }
 
           // ── selfTest: SelfTestResultSet + allTestsArePositive ────────
-          // Structure: SEQUENCE OF { PrintStr component, BOOL passed, INT errorCode }
-          //            followed by BOOL allTestsArePositive (at top-level, after the SEQOF)
+          // SelfTestEventData structure is NOT wrapped in an outer SEQUENCE:
+          //   [0] 0x30 len=N  → SelfTestResultSet (SEQUENCE OF SelfTestResult)
+          //   [1] 0x01 len=1  → allTestsArePositive BOOLEAN
+          // We must parse eventData FLAT to see both top-level elements.
           if (r.eventType === 'selfTest') {
-            // kids contains: SEQ entries from inside SelfTestResultSet + BOOL allTestsArePositive
+            const flatKids = parseChildren(r.eventData, 0, r.eventData.length);
             const STR_TAGS_ST = [0x0C, 0x13, 0x16, 0x1A, 0x1B];
             const resultEntries = [];
-            for (const seqKid of kids.filter(k => k.tag === 0x30)) {
-              try {
-                const sub = parseChildren(seqKid.value, 0, seqKid.value.length);
-                const nameK  = sub.find(k => STR_TAGS_ST.includes(k.tag));
-                const passK  = sub.find(k => k.tag === 0x01);
-                const errK   = sub.find(k => k.tag === 0x02);
-                resultEntries.push({
-                  component: nameK  ? readPrintable(nameK.value) : '?',
-                  passed:    passK  ? passK.value[0] !== 0x00   : null,
-                  errorCode: errK   ? _readUint(errK.value)     : 0,
-                });
-              } catch (e) { /* ignore malformed entry */ }
+            // Find SelfTestResultSet (first SEQ kid) and parse each SelfTestResult inside it
+            const resultSetKid = flatKids.find(k => k.tag === 0x30);
+            if (resultSetKid) {
+              const resultSet = parseChildren(resultSetKid.value, 0, resultSetKid.value.length);
+              for (const entry of resultSet) {
+                if (entry.tag !== 0x30) continue;
+                try {
+                  const sub  = parseChildren(entry.value, 0, entry.value.length);
+                  const nameK = sub.find(k => STR_TAGS_ST.includes(k.tag));
+                  const passK = sub.find(k => k.tag === 0x01);
+                  const errK  = sub.find(k => k.tag === 0x02);
+                  resultEntries.push({
+                    component: nameK ? readPrintable(nameK.value) : '?',
+                    passed:    passK ? passK.value[0] !== 0x00   : null,
+                    errorCode: errK  ? _readUint(errK.value)     : 0,
+                  });
+                } catch (e) { /* ignore malformed entry */ }
+              }
             }
             r.selfTestResults     = resultEntries;
             r.selfTestResultCount = resultEntries.length;
-            // allTestsArePositive: BOOL at top level (after the SelfTestResultSet SEQUENCE)
-            if (boolKids.length > 0) {
-              r.selfTestAllPassed = boolKids[0].value[0] !== 0x00;
+            // allTestsArePositive: BOOL at flat level, AFTER the SelfTestResultSet SEQ
+            const allPassedKid = flatKids.find(k => k.tag === 0x01);
+            if (allPassedKid) {
+              r.selfTestAllPassed = allPassedKid.value[0] !== 0x00;
             }
             r.eventDataHasTimeValue = false;
-            // Prevent the generic BOOL handler from misidentifying allTestsArePositive as authResult
-            // (already guarded above with r.eventType !== 'selfTest')
           }
 
           // logOut: loggedOutUserId (UTF8String / PrintableString) + logOutCase (ENUMERATED)
@@ -539,6 +546,16 @@ const ASN1 = (() => {
             }
           }
 
+          // ── enterSecureState: timeOfEvent (GeneralizedTime / UTCTime) ────
+          if (r.eventType === 'enterSecureState') {
+            const timeKid = kids.find(k => k.tag === 0x18 || k.tag === 0x17);
+            if (timeKid) {
+              r.timeOfEvent = timeKid.tag === 0x18
+                ? readGeneralizedTime(timeKid.value)
+                : readUTCTime(timeKid.value);
+            }
+          }
+
         } catch (e) {
           r.eventDataHasTimeValue = false;
         }
@@ -558,6 +575,76 @@ const ASN1 = (() => {
       ).join(' · ');
       r.selfTestHasFailed = failedTests.length > 0;
       r.selfTestFailedComponents = failedTests.map(t => t.component).join(', ');
+    }
+
+    // ── eventDataParsed: strukturiertes Debug-Objekt je nach eventType ──────
+    if (r.logType === 'sys') {
+      const ep = { _eventType: r.eventType || null };
+      switch (r.eventType) {
+        case 'startAudit':
+          ep._structure = 'empty SEQUENCE (0x30 0x00)'; break;
+
+        case 'exitSecureState':
+          ep._structure = 'empty SEQUENCE (0x30 0x00)'; break;
+
+        case 'enterSecureState':
+          ep.timeOfEvent = r.timeOfEvent ?? null; break;
+
+        case 'updateTime':
+          ep.seTimeBeforeUpdate = r.seTimeBeforeUpdate ?? null;
+          ep.seTimeAfterUpdate  = r.seTimeAfterUpdate  ?? null;
+          ep.slewSettings       = r.slewSettings
+            ? { _rawByteLen: r.slewSettings.length, _hex: Array.from(r.slewSettings).map(b => b.toString(16).padStart(2,'0')).join('') }
+            : null;
+          break;
+
+        case 'selfTest':
+          ep.allTestsArePositive = r.selfTestAllPassed ?? null;
+          ep.resultCount         = r.selfTestResultCount ?? 0;
+          ep.results             = (r.selfTestResults ?? []).map(t => ({
+            component: t.component,
+            passed:    t.passed,
+            errorCode: t.errorCode || null,
+          }));
+          ep.failedComponents    = r.selfTestFailedComponents || null;
+          break;
+
+        case 'authenticateUser':
+          ep.userId           = r.eventDataUserId          ?? null;
+          ep.role             = r.eventDataRole            ?? null;
+          ep.authResult       = r.eventDataAuthResultStr   ?? (r.eventDataAuthResult != null ? (r.eventDataAuthResult ? 'success' : 'failed') : null);
+          ep.authResultBool   = r.eventDataAuthResult      ?? null;
+          ep.remainingRetries = r.eventDataRemainingRetries ?? null;
+          break;
+
+        case 'logOut':
+          ep.loggedOutUserId = r.loggedOutUserId ?? null;
+          ep.logOutCase      = r.logOutCaseStr   ?? null;
+          ep.logOutCaseEnum  = r.logOutCaseEnum  ?? null;
+          break;
+
+        case 'unblockUser':
+          ep.unblockedUserId = r.unblockedUserId ?? null; break;
+
+        case 'registerClient':
+        case 'deregisterClient':
+          ep.clientId = r.eventDataClientId ?? null; break;
+
+        default:
+          // unbekannter eventType: rohe Infos
+          if (r.eventDataLen != null) ep._rawByteLen = r.eventDataLen;
+          if (r.eventDataDecoded)     ep._decodedText = r.eventDataDecoded;
+          break;
+      }
+      // Immer: rohe Hex-Darstellung anhängen (max. 64 Byte)
+      if (r.eventData && r.eventData.length > 0) {
+        const slice = r.eventData.slice(0, 64);
+        ep._rawHex = Array.from(slice).map(b => b.toString(16).padStart(2,'0')).join('');
+        if (r.eventData.length > 64) ep._rawHex += `… (+${r.eventData.length - 64} Byte)`;
+      }
+      r.eventDataParsed = ep;
+    } else {
+      r.eventDataParsed = null;
     }
 
     // hasIndefiniteEncoding alias
