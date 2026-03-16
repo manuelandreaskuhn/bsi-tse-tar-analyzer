@@ -7,7 +7,7 @@
 //          Je Funktion ein Rule-Objekt mit eigenem ID.
 'use strict';
 
-window.RulesExpLog01 = (function () {
+window.RulesCatExpLog01 = (function () {
   const CAT = 'EXP_LOG_01 – Funktions-Log-Nachweis';
   const REF  = 'BSI TR-03153-1 §9 / BSI TR-03151-1';
 

@@ -326,8 +326,8 @@ const ASN1 = (() => {
     const _LOG_TYPE_LABELS = { sys: 'SystemLog', txn: 'TransactionLog', audit: 'AuditLog' };
     r.logTypeLabel = _LOG_TYPE_LABELS[r.logType] || r.logType || 'unknown';
 
-    // serialNumber as hex string
-    if (r.serialNumber instanceof Uint8Array) {
+    // serialNumber as hex string (handle Uint8Array, subarray views, and any other non-string binary type)
+    if (r.serialNumber != null && typeof r.serialNumber !== 'string') {
       r.serialNumber = Utils.hexString(r.serialNumber);
     }
 
@@ -481,6 +481,33 @@ const ASN1 = (() => {
   const STR_TAGS_DN = [0x0C, 0x13, 0x16, 0x1E, 0x14, 0x15, 0x1A];
   const BSI_TSE_SUBJECT_OID = '0.4.0.127.0.7.3.10.1.2';
 
+  /** Dekodiert Base64-String → Uint8Array (ohne Abhängigkeit von globalem atob) */
+  function _base64ToBytes(b64) {
+    if (typeof atob === 'function') {
+      const bin = atob(b64);
+      return new Uint8Array(bin.length).map((_, i) => bin.charCodeAt(i));
+    }
+    // Fallback: manuelle Base64-Dekodierung für Umgebungen ohne atob
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    const lookup = new Uint8Array(256).fill(255);
+    for (let i = 0; i < chars.length; i++) lookup[chars.charCodeAt(i)] = i;
+    lookup['='.charCodeAt(0)] = 0;
+    const padding = (b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0);
+    const byteLen = (b64.length * 3 / 4) - padding;
+    const out = new Uint8Array(byteLen);
+    let j = 0;
+    for (let i = 0; i < b64.length; i += 4) {
+      const a = lookup[b64.charCodeAt(i)];
+      const b = lookup[b64.charCodeAt(i + 1)];
+      const c = lookup[b64.charCodeAt(i + 2)];
+      const d = lookup[b64.charCodeAt(i + 3)];
+      if (j < byteLen) out[j++] = (a << 2) | (b >> 4);
+      if (j < byteLen) out[j++] = ((b & 0x0f) << 4) | (c >> 2);
+      if (j < byteLen) out[j++] = ((c & 0x03) << 6) | d;
+    }
+    return out;
+  }
+
   /** Liest PEM oder DER → Uint8Array */
   function parsePEMorDER(content) {
     if (!content || content.length === 0) throw new Error('Leerer Inhalt');
@@ -488,8 +515,7 @@ const ASN1 = (() => {
       const text = new TextDecoder('utf-8', { fatal: false }).decode(content);
       const m = text.match(/-----BEGIN CERTIFICATE-----\s*([\s\S]+?)\s*-----END CERTIFICATE-----/);
       if (!m) throw new Error('Kein gültiges PEM-Zertifikat');
-      const bin = atob(m[1].replace(/\s/g, ''));
-      return new Uint8Array(bin.split('').map(c => c.charCodeAt(0)));
+      return _base64ToBytes(m[1].replace(/\s/g, ''));
     }
     if (content[0] === 0x30) return content instanceof Uint8Array ? content : new Uint8Array(content);
     throw new Error('Unbekanntes Zertifikatformat');

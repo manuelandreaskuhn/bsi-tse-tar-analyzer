@@ -89,15 +89,17 @@ window.RulesCat08 = (function() {
           'BSI TR-03116-5'));
 
     // LOG_SERIAL
-    const badSerial = validLogs.filter(l => !l.serialNumber || l.serialNumber.length !== 64); // serialNumber is hex string (32 bytes = 64 hex chars)
+    // serialNumber is hex string: SHA-256(pubkey) = 32 Byte = 64 hex chars (P-256), or SHA-384(pubkey) = 48 Byte = 96 hex chars (P-384)
+    const VALID_SERIAL_LENGTHS = [64, 96]; // 32 Byte (SHA-256) or 48 Byte (SHA-384)
+    const badSerial = validLogs.filter(l => !l.serialNumber || !VALID_SERIAL_LENGTHS.includes(l.serialNumber.length));
     results.push(badSerial.length === 0
-      ? Utils.pass('LOG_SERIAL', 'serialNumber vorhanden (32 Byte)', CAT,
-          `Alle ${validLogs.length} Logs: serialNumber vorhanden und 32 Byte.`,
-          'Das Feld `serialNumber` muss vorhanden sein und exakt 32 Byte lang sein (SHA-256-Hash des öffentlichen Schlüssels der TSE).',
+      ? Utils.pass('LOG_SERIAL', 'serialNumber vorhanden (32 oder 48 Byte)', CAT,
+          `Alle ${validLogs.length} Logs: serialNumber vorhanden und gültige Länge (${[...new Set(validLogs.map(l=>l.serialNumber?Math.floor(l.serialNumber.length/2)+' Byte':'?'))].join(', ')}).`,
+          'Das Feld `serialNumber` muss vorhanden sein und exakt 32 Byte (SHA-256, P-256) oder 48 Byte (SHA-384, P-384) lang sein (Hash des öffentlichen Schlüssels der TSE gemäß BSI TR-03116-5).',
           'BSI TR-03153-1 §9.3.2')
-      : Utils.warn('LOG_SERIAL', 'serialNumber vorhanden (32 Byte)', CAT,
-          `${badSerial.length} Logs mit fehlendem/falschem serialNumber:\n${badSerial.map(l=>`  ${l._filename}: ${l.serialNumber?Math.floor(l.serialNumber.length/2)+' Byte ('+l.serialNumber.length+' Hex-Zeichen)':'fehlt'}`).join('\n')}`,
-          'Das Feld `serialNumber` muss vorhanden sein und exakt 32 Byte lang sein.',
+      : Utils.warn('LOG_SERIAL', 'serialNumber vorhanden (32 oder 48 Byte)', CAT,
+          `${badSerial.length} Logs mit fehlendem/falschem serialNumber:\n${badSerial.map(l=>`  ${l._filename}: ${l.serialNumber?Math.floor(l.serialNumber.length/2)+' Byte ('+l.serialNumber.length+' Hex-Zeichen) – erwartet 32 Byte (SHA-256) oder 48 Byte (SHA-384)':'fehlt'}`).join('\n')}`,
+          'Das Feld `serialNumber` muss vorhanden sein und exakt 32 Byte (SHA-256/P-256) oder 48 Byte (SHA-384/P-384) lang sein.',
           'BSI TR-03153-1 §9.3.2'));
 
     // LOG_SERIAL_CERT
@@ -106,7 +108,7 @@ window.RulesCat08 = (function() {
     if (leafCert && leafCert.subjectCN) {
       const mismatch = validLogs.filter(l => {
         if (!l.serialNumber) return false;
-        const snHex = l.serialNumber; // already a hex string after post-processing
+        const snHex = typeof l.serialNumber === 'string' ? l.serialNumber : Utils.hexString(l.serialNumber);
         return snHex.toLowerCase() !== leafCert.subjectCN.toLowerCase();
       });
       results.push(mismatch.length === 0
