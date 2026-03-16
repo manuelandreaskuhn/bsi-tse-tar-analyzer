@@ -397,9 +397,40 @@ const ASN1 = (() => {
           }
           const kids = parseChildren(r.eventData, parseStart, parseEnd);
 
-          // Check for time value (updateTime: seTimeAfterUpdate)
+          // Check for time value: GeneralizedTime/UTCTime tags OR INTEGER (Unix timestamp).
+          // TR-03151-1 TSE logs often encode Time as INTEGER (Unix timestamp), not ASN.1 time types.
           r.eventDataHasTimeValue = kids.some(k => k.tag === 0x18 || k.tag === 0x17 ||
             (k.tag & 0x80) === 0x80);
+
+          // ── Helper: read unsigned big-endian integer from byte array ──
+          function _readUint(bytes) {
+            let v = 0; for (const b of (bytes||[])) v = v * 256 + b; return v;
+          }
+
+          // ── updateTime: seTimeBeforeUpdate, seTimeAfterUpdate ─────────
+          // TR-03151-1 Time = INTEGER (Unix timestamp) OR GeneralizedTime/UTCTime.
+          // The eventData is encoded flat (no SEQUENCE wrapper in some implementations).
+          if (r.eventType === 'updateTime') {
+            const intKidsUdt  = kids.filter(k => k.tag === 0x02);
+            const timeTagsUdt = kids.filter(k => k.tag === 0x18 || k.tag === 0x17);
+            const beforeRaw = timeTagsUdt[0] || intKidsUdt[0];
+            const afterRaw  = timeTagsUdt[1] || intKidsUdt[1];
+            if (beforeRaw) {
+              r.seTimeBeforeUpdate = (beforeRaw.tag === 0x02)
+                ? _readUint(beforeRaw.value)
+                : (beforeRaw.tag === 0x18 ? readGeneralizedTime(beforeRaw.value)
+                                          : readUTCTime(beforeRaw.value));
+              r.eventDataHasTimeValue = true;
+            }
+            if (afterRaw) {
+              r.seTimeAfterUpdate = (afterRaw.tag === 0x02)
+                ? _readUint(afterRaw.value)
+                : (afterRaw.tag === 0x18 ? readGeneralizedTime(afterRaw.value)
+                                         : readUTCTime(afterRaw.value));
+            }
+            const slewSeq = kids.find(k => k.tag === 0x30);
+            if (slewSeq) r.slewSettings = slewSeq.value;
+          }
 
           // ENUMERATED authenticationResult (TR-03151-1 tag 0x0A)
           const AUTH_RESULT_NAMES = { 0:'success', 1:'unknownUserId', 2:'incorrectPin', 3:'pinBlocked' };
@@ -412,18 +443,72 @@ const ASN1 = (() => {
             r.eventDataAuthResult     = ev === 0; // success
           }
 
-          // BOOLEAN authenticationResult (legacy)
+          // BOOLEAN authenticationResult (legacy) – skip for eventTypes that use BOOLEAN differently
           const boolKids = kids.filter(k => k.tag === 0x01);
-          if (boolKids.length > 0 && r.eventDataAuthResult === undefined) {
+          if (boolKids.length > 0 && r.eventDataAuthResult === undefined
+              && r.eventType !== 'selfTest') {
             r.eventDataAuthResult = (boolKids[0].value && boolKids[0].value[0] !== 0);
           }
 
-          // INTEGER remainingRetries
+          // INTEGER remainingRetries (authenticateUser) – skip for updateTime and selfTest
           const intKids = kids.filter(k => k.tag === 0x02);
-          if (intKids.length > 0) {
+          if (r.eventType !== 'updateTime' && r.eventType !== 'selfTest' && intKids.length > 0) {
             let rv = 0;
             for (const b of (intKids[0].value || [])) rv = rv * 256 + b;
             r.eventDataRemainingRetries = rv;
+          }
+
+          // ── authenticateUser: userId, role ───────────────────────────
+          if (r.eventType === 'authenticateUser') {
+            const STR_TAGS_AUTH = [0x0C, 0x13, 0x16, 0x1A, 0x1B];
+            const strKidsAuth = kids.filter(k => STR_TAGS_AUTH.includes(k.tag));
+            if (strKidsAuth.length >= 1)
+              r.eventDataUserId = new TextDecoder('utf-8', { fatal: false }).decode(strKidsAuth[0].value || new Uint8Array());
+            if (strKidsAuth.length >= 2)
+              r.eventDataRole = new TextDecoder('utf-8', { fatal: false }).decode(strKidsAuth[1].value || new Uint8Array());
+            if (enumKids.length >= 1 && !r.eventDataRole) {
+              const ROLE_NAMES = { 0:'unauthenticated', 1:'logger', 2:'admin', 3:'timeadmin', 4:'smaadmin' };
+              r.eventDataRole = ROLE_NAMES[_readUint(enumKids[0].value)] || ('ROLE:' + _readUint(enumKids[0].value));
+            }
+          }
+
+          // ── registerClient / deregisterClient: clientId ──────────────
+          if (r.eventType === 'registerClient' || r.eventType === 'deregisterClient') {
+            const STR_TAGS_CLI = [0x0C, 0x13, 0x16, 0x1A, 0x1B];
+            const strKidsCli = kids.filter(k => STR_TAGS_CLI.includes(k.tag));
+            if (strKidsCli.length >= 1)
+              r.eventDataClientId = new TextDecoder('utf-8', { fatal: false }).decode(strKidsCli[0].value || new Uint8Array());
+          }
+
+          // ── selfTest: SelfTestResultSet + allTestsArePositive ────────
+          // Structure: SEQUENCE OF { PrintStr component, BOOL passed, INT errorCode }
+          //            followed by BOOL allTestsArePositive (at top-level, after the SEQOF)
+          if (r.eventType === 'selfTest') {
+            // kids contains: SEQ entries from inside SelfTestResultSet + BOOL allTestsArePositive
+            const STR_TAGS_ST = [0x0C, 0x13, 0x16, 0x1A, 0x1B];
+            const resultEntries = [];
+            for (const seqKid of kids.filter(k => k.tag === 0x30)) {
+              try {
+                const sub = parseChildren(seqKid.value, 0, seqKid.value.length);
+                const nameK  = sub.find(k => STR_TAGS_ST.includes(k.tag));
+                const passK  = sub.find(k => k.tag === 0x01);
+                const errK   = sub.find(k => k.tag === 0x02);
+                resultEntries.push({
+                  component: nameK  ? readPrintable(nameK.value) : '?',
+                  passed:    passK  ? passK.value[0] !== 0x00   : null,
+                  errorCode: errK   ? _readUint(errK.value)     : 0,
+                });
+              } catch (e) { /* ignore malformed entry */ }
+            }
+            r.selfTestResults     = resultEntries;
+            r.selfTestResultCount = resultEntries.length;
+            // allTestsArePositive: BOOL at top level (after the SelfTestResultSet SEQUENCE)
+            if (boolKids.length > 0) {
+              r.selfTestAllPassed = boolKids[0].value[0] !== 0x00;
+            }
+            r.eventDataHasTimeValue = false;
+            // Prevent the generic BOOL handler from misidentifying allTestsArePositive as authResult
+            // (already guarded above with r.eventType !== 'selfTest')
           }
 
           // logOut: loggedOutUserId (UTF8String / PrintableString) + logOutCase (ENUMERATED)
@@ -463,6 +548,16 @@ const ASN1 = (() => {
     } else {
       r.eventDataLen = null;
       r.eventDataHasTimeValue = false;
+    }
+
+    // selfTestResults: build display summary for UI
+    if (r.selfTestResults && r.selfTestResults.length > 0) {
+      const failedTests = r.selfTestResults.filter(t => !t.passed);
+      r.selfTestResultsSummary = r.selfTestResults.map(t =>
+        `${t.passed ? '✓' : '✗'} ${t.component}${t.errorCode ? ` (errCode=${t.errorCode})` : ''}`
+      ).join(' · ');
+      r.selfTestHasFailed = failedTests.length > 0;
+      r.selfTestFailedComponents = failedTests.map(t => t.component).join(', ');
     }
 
     // hasIndefiniteEncoding alias

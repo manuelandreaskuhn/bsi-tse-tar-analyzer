@@ -1745,3 +1745,339 @@ table td {
 table tr:last-child td {
   border-bottom: none;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ASN.1 VIEWER
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Panel (äußere Card) ────────────────────────────────────────────── */
+.asn1-viewer-panel {
+  margin-bottom: 16px;
+  overflow: visible;
+}
+
+.asn1-viewer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  user-select: none;
+  border-bottom: 1px solid var(--border);
+  background: var(--sidebar-bg);
+  border-radius: 8px 8px 0 0;
+  transition: background .15s;
+}
+.asn1-viewer-header:hover { background: #eef2fa; }
+
+.asn1-panel-caret {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform .15s;
+  flex-shrink: 0;
+}
+
+.asn1-panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.asn1-panel-func {
+  font-family: var(--mono);
+  font-size: 11px;
+  background: var(--accent-light);
+  border: 1px solid var(--accent-border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+.asn1-spec-ref {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+
+.asn1-viewer-body {
+  padding: 0;
+}
+
+/* ── Legende ────────────────────────────────────────────────────────── */
+.asn1-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 8px 16px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: #fafbfd;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ── Struktur-Block ─────────────────────────────────────────────────── */
+.asn1-struct-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.asn1-struct-block {
+  border-top: 3px solid var(--accent);
+  border-bottom: 1px solid var(--border);
+}
+.asn1-struct-block:last-child { border-bottom: none; }
+
+.asn1-struct-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  user-select: none;
+  background: var(--sidebar-bg);
+  transition: background .15s;
+}
+.asn1-struct-header:hover { background: #eef2fa; }
+
+.asn1-block-caret {
+  font-size: 9px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.asn1-struct-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  white-space: nowrap;
+}
+
+.asn1-struct-name {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  background: transparent;
+  opacity: .85;
+}
+
+.asn1-field-counter {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.asn1-struct-body {
+  padding: 4px 0 8px;
+}
+
+/* ── Felder-Tabelle ─────────────────────────────────────────────────── */
+.asn1-fields-table {
+  display: flex;
+  flex-direction: column;
+}
+
+.asn1-field-row {
+  border-bottom: 1px solid var(--border-light, #f0f2f7);
+  padding: 5px 8px;
+  transition: background .1s;
+}
+.asn1-field-row:hover { background: #fafbff; }
+.asn1-field-row:last-child { border-bottom: none; }
+
+/* Depth-based left-border accent */
+.asn1-depth-0 { border-left: 3px solid transparent; }
+.asn1-depth-1 { border-left: 3px solid #e0e7ff; background: #fafbff; }
+.asn1-depth-2 { border-left: 3px solid #e0f2fe; background: #f7fcff; }
+.asn1-depth-3 { border-left: 3px solid #f0fdf4; background: #f7fff9; }
+
+.asn1-field-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  min-height: 24px;
+}
+
+.asn1-field-desc {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  padding-left: 56px;
+  line-height: 1.4;
+}
+
+/* Expand button */
+.asn1-expand-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-muted);
+  font-size: 8px;
+  cursor: pointer;
+  padding: 1px 4px;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .1s;
+}
+.asn1-expand-btn:hover { background: var(--accent-light); color: var(--accent); border-color: var(--accent-border); }
+
+.asn1-expand-spacer { width: 18px; flex-shrink: 0; }
+
+/* Status dots */
+.asn1-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 800;
+  flex-shrink: 0;
+  cursor: default;
+}
+.asn1-dot-ok   { background: var(--pass-bg);  color: var(--pass);  border: 1px solid var(--pass-border); }
+.asn1-dot-miss { background: var(--fail-bg);  color: var(--fail);  border: 1px solid var(--fail-border); }
+.asn1-dot-opt  { background: var(--skip-bg);  color: var(--skip);  border: 1px solid var(--skip-border); }
+.asn1-dot-rfu  { background: var(--warn-bg);  color: var(--warn);  border: 1px solid var(--warn-border); }
+
+/* Field name */
+.asn1-field-name {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+/* Tag badge (e.g. [0] IMPLICIT) */
+.asn1-tag-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  border-radius: 3px;
+  padding: 0 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Type badge */
+.asn1-type-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  border: 1px solid;
+  border-radius: 3px;
+  padding: 0 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Required / Optional badges */
+.asn1-req-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  background: #fef2f2;
+  color: var(--fail);
+  border: 1px solid var(--fail-border);
+  border-radius: 3px;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+.asn1-opt-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  background: var(--skip-bg);
+  color: var(--skip);
+  border: 1px solid var(--skip-border);
+  border-radius: 3px;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+/* Field value */
+.asn1-field-value {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text);
+  background: var(--pass-bg);
+  border: 1px solid var(--pass-border);
+  border-radius: 3px;
+  padding: 1px 6px;
+  word-break: break-all;
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.asn1-field-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Field note (RFU etc.) */
+.asn1-field-note {
+  font-size: 10px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  border: 1px solid var(--warn-border);
+  border-radius: 3px;
+  padding: 0 5px;
+}
+
+/* Children container */
+.asn1-children {
+  margin-top: 4px;
+  border-left: 2px solid var(--border);
+  margin-left: 8px;
+}
+
+/* Responsive */
+@media (max-width: 700px) {
+  .asn1-viewer-header { flex-wrap: wrap; }
+  .asn1-panel-func { max-width: 180px; }
+  .asn1-field-desc { padding-left: 12px; }
+  .asn1-field-value { max-width: 200px; }
+}
+
+/* ── ASN.1 Viewer: error row tints & child-error dot (additions) ─────── */
+.asn1-row-error {
+  background: var(--fail-bg) !important;
+  border-left-color: var(--fail) !important;
+}
+.asn1-row-child-error {
+  background: #fffbeb !important;
+  border-left-color: var(--warn) !important;
+}
+.asn1-dot-child-err {
+  background: #fff7ed;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}

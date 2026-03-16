@@ -596,6 +596,17 @@ window.UIRenderer = (function () {
 
     const cl = container.querySelector('#file-check-list');
     if (cl) checkResults.forEach(r => cl.appendChild(_buildCheckRow(r)));
+
+    // ── ASN.1 Viewer ── nach Log-Feldern, vor TR-Prüfungen ──────────────
+    if (!f.parseError && window.ASN1Viewer && window.ASN1Definitions) {
+      const viewerEl = ASN1Viewer.render(f);
+      if (viewerEl) {
+        // Einfügen zwischen Felder-Card und Prüfungen-Card
+        const checksCard = container.querySelector('#file-check-list')?.closest('.card');
+        if (checksCard) container.insertBefore(viewerEl, checksCard);
+        else container.appendChild(viewerEl);
+      }
+    }
   }
 
   // ── Cert Detail Page ──────────────────────────────────────────────────────

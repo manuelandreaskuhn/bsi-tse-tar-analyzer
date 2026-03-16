@@ -30,7 +30,8 @@ window.RulesCat09 = (function () {
       for (const id of ['LOG_EVTYPE', 'LOG_ORIGIN', 'LOG_TRIGGER', 'LOG_EVDATA', 'SYSLOG_RULES',
         'SYS_EVT_STARTAUDIT_FIRST', 'SYS_EVT_SECURE_PAIRS', 'SYS_EVT_UPDATETIME_GAP',
         'SYS_EVT_LOGOUT_PRESENT', 'SYS_EVT_SELFTEST_PRESENT', 'EVDATA_STARTAUDIT',
-        'EVDATA_EXITSECURE', 'EVDATA_ENTERSTATE_TIMEOFEVENT', 'EVDATA_AUTH_RESULT', 'EVDATA_AUTH_RETRIES']) {
+        'EVDATA_EXITSECURE', 'EVDATA_ENTERSTATE_TIMEOFEVENT', 'EVDATA_AUTH_RESULT', 'EVDATA_AUTH_RETRIES',
+        'EVDATA_SELFTEST_ALL_PASSED', 'EVDATA_SELFTEST_COMPONENTS']) {
         results.push(Utils.skip(id, id, CAT, 'Keine SystemLog-Dateien vorhanden.', '', 'BSI TR-03151-1'));
       }
       return results;
@@ -218,14 +219,67 @@ window.RulesCat09 = (function () {
       results.push(selfTestLogs.length > 0
         ? Utils.pass('SYS_EVT_SELFTEST_PRESENT', 'selfTest-Ereignis im Archiv vorhanden', CAT,
           `${selfTestLogs.length} selfTest-Ereignis(se) gefunden.`,
-          '', 'BSI TR-03153-1')
+          'TSE muss periodisch selfTest-Ereignisse protokollieren.', 'BSI TR-03153-1')
         : Utils.info('SYS_EVT_SELFTEST_PRESENT', 'selfTest-Ereignis im Archiv vorhanden', CAT,
-          'Kein selfTest-Ereignis im Archiv. Erwartet wird mindestens ein selfTest-Log im Betriebslebenszyklus.',
+          'Kein selfTest-Ereignis im Archiv (partieller Export?).',
           'selfTest-Ereignisse dokumentieren Selbsttests der TSE.', 'BSI TR-03153-1'));
     }
 
     // EVDATA_* checks
     const sysLogsAll = (parsedLogs || []).filter(l => !l.parseError && l.logType === 'sys');
+
+    // EVDATA_SELFTEST_ALL_PASSED – allTestsArePositive muss TRUE sein
+    {
+      const selfTestLogsAll = sysLogsAll.filter(l => l.eventType === 'selfTest');
+      if (selfTestLogsAll.length === 0) {
+        results.push(Utils.skip('EVDATA_SELFTEST_ALL_PASSED', 'allTestsArePositive = TRUE', CAT,
+          'Keine selfTest-Logs.', '', 'BSI TR-03151-1 §5.4'));
+      } else {
+        const noResult  = selfTestLogsAll.filter(l => l.selfTestAllPassed == null);
+        const failedAll = selfTestLogsAll.filter(l => l.selfTestAllPassed === false);
+        if (noResult.length > 0) {
+          results.push(Utils.warn('EVDATA_SELFTEST_ALL_PASSED', 'allTestsArePositive = TRUE', CAT,
+            `${noResult.length} selfTest-Logs ohne erkennbares allTestsArePositive-Feld: ${noResult.map(l=>l._filename).join(', ')}`,
+            'SelfTestEventData muss BOOLEAN allTestsArePositive enthalten.', 'BSI TR-03151-1 §5.4'));
+        } else if (failedAll.length > 0) {
+          results.push(Utils.fail('EVDATA_SELFTEST_ALL_PASSED', 'allTestsArePositive = TRUE', CAT,
+            `${failedAll.length} selfTest-Log(s) mit allTestsArePositive = FALSE:\n` +
+            failedAll.map(l => `  ${l._filename}${l.selfTestFailedComponents ? ': fehlgeschlagen: ' + l.selfTestFailedComponents : ''}`).join('\n'),
+            'allTestsArePositive muss TRUE sein – fehlgeschlagene Selbsttests weisen auf ein TSE-Problem hin.', 'BSI TR-03151-1 §5.4'));
+        } else {
+          results.push(Utils.pass('EVDATA_SELFTEST_ALL_PASSED', 'allTestsArePositive = TRUE', CAT,
+            `Alle ${selfTestLogsAll.length} selfTest-Logs: allTestsArePositive = TRUE ✓` +
+            (selfTestLogsAll[0].selfTestResultsSummary ? `\nKomponenten (erstes Log): ${selfTestLogsAll[0].selfTestResultsSummary}` : ''),
+            'allTestsArePositive muss TRUE sein.', 'BSI TR-03151-1 §5.4'));
+        }
+      }
+    }
+
+    // EVDATA_SELFTEST_COMPONENTS – Anzahl und Namen der getesteten Komponenten
+    {
+      const selfTestLogsAll = sysLogsAll.filter(l => l.eventType === 'selfTest');
+      if (selfTestLogsAll.length === 0) {
+        results.push(Utils.skip('EVDATA_SELFTEST_COMPONENTS', 'selfTest-Komponenten vorhanden', CAT,
+          'Keine selfTest-Logs.', '', 'BSI TR-03151-1 §5.4'));
+      } else {
+        const noComponents = selfTestLogsAll.filter(l => !l.selfTestResultCount || l.selfTestResultCount === 0);
+        if (noComponents.length > 0) {
+          results.push(Utils.warn('EVDATA_SELFTEST_COMPONENTS', 'selfTest-Komponenten vorhanden', CAT,
+            `${noComponents.length} selfTest-Logs ohne geparste Komponentenergebnisse: ${noComponents.map(l=>l._filename).join(', ')}`,
+            'SelfTestResultSet muss mindestens einen Eintrag enthalten.', 'BSI TR-03151-1 §5.4'));
+        } else {
+          // Collect all unique component names across all selfTest logs
+          const allComps = new Set(selfTestLogsAll.flatMap(l => (l.selfTestResults||[]).map(r => r.component)));
+          const compDetail = selfTestLogsAll.slice(0,3).map(l =>
+            `  ${l._filename} (${l.selfTestResultCount} Komp.): ${(l.selfTestResults||[]).map(r=>(r.passed?'✓':'✗')+r.component).join(', ')}`
+          ).join('\n');
+          results.push(Utils.pass('EVDATA_SELFTEST_COMPONENTS', 'selfTest-Komponenten vorhanden', CAT,
+            `${selfTestLogsAll.length} selfTest-Log(s). Getestete Komponenten: ${[...allComps].join(', ')}\n${compDetail}` +
+            (selfTestLogsAll.length > 3 ? `\n  … (${selfTestLogsAll.length-3} weitere)` : ''),
+            'SelfTestResultSet muss Einträge für jede getestete TSE-Komponente enthalten.', 'BSI TR-03151-1 §5.4'));
+        }
+      }
+    }
 
     // EVDATA_STARTAUDIT – eventData must be null or empty SEQUENCE (0x30 0x00)
     const startAuditLogsAll = sysLogsAll.filter(l => l.eventType === 'startAudit');
@@ -313,51 +367,43 @@ window.RulesCat09 = (function () {
       results.push(Utils.skip('EVDATA_AUTH_RETRIES', 'remainingRetries bei fehlgeschlagener Authentifizierung', CAT,
         'Keine authenticateUser-Logs.', '', 'BSI TR-03151-1 §5.4'));
     } else {
-      // Parse AuthenticationEventData from eventData for each log
-      // Result: { ok: bool, authResult: bool|null, remainingRetries: int|null, filename }
+      // Nutze Pre-parsed Felder aus dem ASN.1-Parser:
+      //   log.eventDataAuthResult         (boolean)
+      //   log.eventDataAuthResultEnum     (0=success, 1=unknownUserId, 2=incorrectPin, 3=pinBlocked)
+      //   log.eventDataAuthResultStr      (string, z.B. "success")
+      //   log.eventDataRemainingRetries   (integer|null)
       const parsed = authLogs.map(log => {
-        // Support pre-parsed fields from the log parser
-        if (log.authenticationResult !== undefined && log.authenticationResult !== null) {
-          return { ok: true, authResult: !!log.authenticationResult, remainingRetries: log.remainingRetries ?? null, filename: log._filename };
-        }
-        if (!log.eventData || log.eventData.length < 5) {
-          return { ok: false, authResult: null, remainingRetries: null, filename: log._filename };
-        }
-        try {
-          const seq = ASN1.readTLV(log.eventData, 0);
-          if (!seq || seq.tag !== 0x30) return { ok: false, authResult: null, remainingRetries: null, filename: log._filename };
-          const boolTlv = ASN1.readTLV(log.eventData, seq.start + seq.headerLen);
-          if (!boolTlv || boolTlv.tag !== 0x01) return { ok: false, authResult: null, remainingRetries: null, filename: log._filename };
-          const authResult = log.eventData[boolTlv.start + boolTlv.headerLen] !== 0x00;
-          let remainingRetries = null;
-          const intOffset = boolTlv.start + boolTlv.headerLen + boolTlv.length;
-          if (intOffset < log.eventData.length) {
-            const intTlv = ASN1.readTLV(log.eventData, intOffset);
-            if (intTlv && intTlv.tag === 0x02) {
-              remainingRetries = 0;
-              for (let i = 0; i < intTlv.length; i++) {
-                remainingRetries = (remainingRetries << 8) | log.eventData[intTlv.start + intTlv.headerLen + i];
-              }
-            }
-          }
-          return { ok: true, authResult, remainingRetries, filename: log._filename };
-        } catch (e) {
-          return { ok: false, authResult: null, remainingRetries: null, filename: log._filename };
-        }
+        const hasResult = log.eventDataAuthResultStr != null || log.eventDataAuthResultEnum != null
+                          || log.eventDataAuthResult != null;
+        return {
+          ok:               hasResult,
+          authResult:       log.eventDataAuthResult  ?? null,
+          authResultEnum:   log.eventDataAuthResultEnum ?? null,
+          authResultStr:    log.eventDataAuthResultStr  ?? null,
+          remainingRetries: log.eventDataRemainingRetries ?? null,
+          filename:         log._filename,
+        };
       });
 
+      // Zeige detaillierte Ergebnisstatistik mit pre-parsed Feldern
       const missingResult = parsed.filter(p => !p.ok);
+      const AUTH_NAMES = { 0:'success', 1:'unknownUserId', 2:'incorrectPin', 3:'pinBlocked' };
+      const resultStats = [0,1,2,3].map(n => {
+        const cnt = parsed.filter(p => p.authResultEnum === n).length;
+        return cnt > 0 ? `${AUTH_NAMES[n]}:${cnt}` : null;
+      }).filter(Boolean).join(', ');
       results.push(missingResult.length === 0
         ? Utils.pass('EVDATA_AUTH_RESULT', 'authenticationResult bei Authentifizierungsereignissen', CAT,
-          `Alle ${authLogs.length} authenticateUser-Logs: authenticationResult korrekt geparst ` +
-          `(${parsed.filter(p => p.authResult).length} erfolgreich, ${parsed.filter(p => p.ok && !p.authResult).length} fehlgeschlagen).`,
-          'AuthenticationEventData muss authenticationResult (BOOLEAN) enthalten.', 'BSI TR-03151-1 §5.4')
+          `Alle ${authLogs.length} authenticateUser-Logs: authenticationResult vorhanden. ` +
+          `Ergebnisse: ${resultStats || `${parsed.filter(p=>p.authResult).length} erfolgreich, ${parsed.filter(p=>p.ok&&!p.authResult).length} fehlgeschlagen`}`,
+          'AuthenticateUserEventData muss authenticationResult (PinAuthenticationResult ENUMERATED) enthalten.', 'BSI TR-03151-1 §5.4')
         : Utils.fail('EVDATA_AUTH_RESULT', 'authenticationResult bei Authentifizierungsereignissen', CAT,
-          `${missingResult.length} authenticateUser-Logs ohne erkennbares authenticationResult: ${missingResult.map(p => p.filename).join(', ')}`,
-          'AuthenticationEventData muss authenticationResult (BOOLEAN) enthalten.', 'BSI TR-03151-1 §5.4'));
+          `${missingResult.length} authenticateUser-Logs ohne erkennbares authenticationResult:\n${missingResult.map(p=>p.filename).join('\n')}`,
+          'AuthenticateUserEventData muss authenticationResult (PinAuthenticationResult ENUMERATED) enthalten.', 'BSI TR-03151-1 §5.4'));
 
       // EVDATA_AUTH_RETRIES – failed auth must have remainingRetries
-      const failedAuth = parsed.filter(p => p.ok && p.authResult === false);
+      // Nutze eventDataAuthResultEnum: alles != 0 gilt als fehlgeschlagen
+      const failedAuth = parsed.filter(p => p.ok && (p.authResultEnum !== null ? p.authResultEnum !== 0 : p.authResult === false));
       if (failedAuth.length === 0) {
         results.push(Utils.info('EVDATA_AUTH_RETRIES', 'remainingRetries bei fehlgeschlagener Authentifizierung', CAT,
           'Keine fehlgeschlagenen Authentifizierungen im Archiv – Prüfung nicht anwendbar.',

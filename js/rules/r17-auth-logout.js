@@ -17,8 +17,8 @@ window.RulesCat17 = (function () {
     }
 
     const sysLogs = (parsedLogs || []).filter(l => !l.parseError && l.logType === 'sys');
-    const authLogs = sysLogs.filter(l => l.eventType === 'authenticate');
-    const logoutLogs = sysLogs.filter(l => l.eventType === 'logout');
+    const authLogs = sysLogs.filter(l => l.eventType === 'authenticateUser');
+    const logoutLogs = sysLogs.filter(l => l.eventType === 'logOut');
     const unblockLogs = sysLogs.filter(l => l.eventType === 'unblockUser');
     const selfTestLogs = sysLogs.filter(l => l.eventType === 'selfTest');
 
@@ -26,16 +26,27 @@ window.RulesCat17 = (function () {
     if (authLogs.length === 0) {
       results.push(Utils.skip('EVDATA_AUTH_RESULT_VALUES', 'authenticationResult-Werte gültig', CAT, 'Keine authenticate-Logs.', '', 'BSI TR-03151-1 §4.4.1'));
     } else {
-      const VALID = ['ok', 'failed', 'failed-disabled'];
-      const badResult = authLogs.filter(l => {
-        try { const d = JSON.parse(new TextDecoder().decode(l.eventData)); return !VALID.includes(d.authenticationResult); } catch { return false; }
-      });
-      results.push(badResult.length === 0
+      // authenticationResult aus dem ASN.1-Parser: eventDataAuthResultStr / eventDataAuthResultEnum
+      // Gültige Werte gemäß PinAuthenticationResult: success(0), unknownUserId(1), incorrectPin(2), pinBlocked(3)
+      const VALID_ENUMS = new Set([0, 1, 2, 3]);
+      const AUTH_RESULT_NAMES = { 0: 'success', 1: 'unknownUserId', 2: 'incorrectPin', 3: 'pinBlocked' };
+      const noResult  = authLogs.filter(l => l.eventDataAuthResultStr == null && l.eventDataAuthResultEnum == null && l.eventDataAuthResult == null);
+      const badResult = authLogs.filter(l => l.eventDataAuthResultEnum != null && !VALID_ENUMS.has(l.eventDataAuthResultEnum));
+      const resultStats = [0,1,2,3].map(n => {
+        const cnt = authLogs.filter(l => l.eventDataAuthResultEnum === n).length;
+        return cnt > 0 ? `${AUTH_RESULT_NAMES[n]}: ${cnt}` : null;
+      }).filter(Boolean).join(', ');
+      results.push(noResult.length === 0 && badResult.length === 0
         ? Utils.pass('EVDATA_AUTH_RESULT_VALUES', 'authenticationResult-Werte gültig', CAT,
-          `${authLogs.length} authenticate-Logs: authenticationResult jeweils gültig.`,
-          `Erlaubt: ${VALID.join(', ')}`, 'BSI TR-03151-1 §4.4.1')
-        : Utils.fail('EVDATA_AUTH_RESULT_VALUES', 'authenticationResult-Werte gültig', CAT,
-          `${badResult.length} Logs mit ungültigem authenticationResult.`, '', 'BSI TR-03151-1 §4.4.1'));
+          `Alle ${authLogs.length} authenticateUser-Logs: authenticationResult gültig. ${resultStats || '(keine Auswertung)'}`,
+          'Gültige PinAuthenticationResult-Werte: success(0), unknownUserId(1), incorrectPin(2), pinBlocked(3)', 'BSI TR-03151-1 §4.4.1')
+        : noResult.length > 0
+          ? Utils.fail('EVDATA_AUTH_RESULT_VALUES', 'authenticationResult-Werte gültig', CAT,
+            `${noResult.length} authenticateUser-Logs ohne erkennbares authenticationResult: ${noResult.map(l=>l._filename).join(', ')}`,
+            'authenticationResult (PinAuthenticationResult ENUMERATED) muss vorhanden und gültig sein.', 'BSI TR-03151-1 §4.4.1')
+          : Utils.fail('EVDATA_AUTH_RESULT_VALUES', 'authenticationResult-Werte gültig', CAT,
+            `${badResult.length} Logs mit ungültigem authenticationResult-Enum: ${badResult.map(l=>`${l._filename}(${l.eventDataAuthResultEnum})`).join(', ')}`,
+            'authenticationResult muss 0–3 sein.', 'BSI TR-03151-1 §4.4.1'));
     }
 
     // EVDATA_AUTH_RETRIES_MAX / DECREMENT / ZERO_BLOCKED – sequential analysis
@@ -109,10 +120,18 @@ window.RulesCat17 = (function () {
         'EVDATA_LOGOUT_ORIGIN_IMPLICIT', 'EVDATA_LOGOUT_TRIGGER_EXPLICIT'].forEach(id =>
           results.push(Utils.skip(id, id, CAT, 'Keine logout-Logs.', '', 'BSI TR-03151-1 §4.4.2')));
     } else {
-      const noUser = logoutLogs.filter(l => !l.eventTriggeredByUser);
+      // loggedOutUserId kommt aus LogOutEventData.loggedOutUserId (jetzt vom Parser extrahiert)
+      const noUser = logoutLogs.filter(l => !l.loggedOutUserId && !l.eventTriggeredByUser);
+      const userStats = logoutLogs.filter(l => l.loggedOutUserId || l.eventTriggeredByUser)
+        .map(l => l.loggedOutUserId || l.eventTriggeredByUser);
+      const uniqueUsers = [...new Set(userStats)];
       results.push(noUser.length === 0
-        ? Utils.pass('EVDATA_LOGOUT_USERID', 'userId in logout vorhanden', CAT, `Alle ${logoutLogs.length} logout-Logs: userId vorhanden.`, '', 'BSI TR-03151-1 §4.4.2')
-        : Utils.warn('EVDATA_LOGOUT_USERID', 'userId in logout vorhanden', CAT, `${noUser.length} Logs ohne userId.`, '', 'BSI TR-03151-1 §4.4.2'));
+        ? Utils.pass('EVDATA_LOGOUT_USERID', 'loggedOutUserId in logOut-EventData vorhanden', CAT,
+          `Alle ${logoutLogs.length} logOut-Logs: loggedOutUserId vorhanden. Nutzer: ${uniqueUsers.join(', ') || '–'}`,
+          'LogOutEventData muss loggedOutUserId enthalten.', 'BSI TR-03151-1 §4.4.2')
+        : Utils.warn('EVDATA_LOGOUT_USERID', 'loggedOutUserId in logOut-EventData vorhanden', CAT,
+          `${noUser.length} logOut-Logs ohne loggedOutUserId: ${noUser.map(l=>l._filename).join(', ')}`,
+          'LogOutEventData muss loggedOutUserId (UserId) enthalten.', 'BSI TR-03151-1 §4.4.2'));
 
       // EVDATA_LOGOUT_CASE – logOutCaseStr/Enum parsed by ASN.1 parser
       // Valid: sessionTimeout(0), differentUserLoggedIn(1), userIdleTimeout(2), userLoggedOut(3)
@@ -196,11 +215,31 @@ window.RulesCat17 = (function () {
       : Utils.pass('EVDATA_UNBLOCK_TRIGGER', 'Trigger bei unblockUser vorhanden', CAT,
         `${unblockLogs.length} unblockUser-Logs gefunden.`, '', 'BSI TR-03151-1 §4.4.3'));
 
-    // EVDATA_SELFTEST_TRIGGER
-    results.push(selfTestLogs.length === 0
-      ? Utils.skip('EVDATA_SELFTEST_TRIGGER', 'Trigger bei selfTest vorhanden', CAT, 'Keine selfTest-Logs.', '', 'BSI TR-03151-1 §4.4.4')
-      : Utils.pass('EVDATA_SELFTEST_TRIGGER', 'Trigger bei selfTest vorhanden', CAT,
-        `${selfTestLogs.length} selfTest-Logs gefunden.`, '', 'BSI TR-03151-1 §4.4.4'));
+    // EVDATA_SELFTEST_TRIGGER – selfTest hat kein triggerRequired (null = optional/irrelevant)
+    // Zeige Ergebnis-Zusammenfassung aus pre-parsed selfTestResults
+    if (selfTestLogs.length === 0) {
+      results.push(Utils.skip('EVDATA_SELFTEST_TRIGGER', 'selfTest-Protokollierung korrekt', CAT,
+        'Keine selfTest-Logs.', '', 'BSI TR-03151-1 §4.4.4'));
+    } else {
+      const failedSelfTests = selfTestLogs.filter(l => l.selfTestAllPassed === false);
+      const noResult        = selfTestLogs.filter(l => l.selfTestAllPassed == null);
+      const summary = selfTestLogs.slice(0, 3).map(l => {
+        const compStr = l.selfTestResultsSummary || `${l.selfTestResultCount ?? '?'} Komponenten`;
+        return `  ${l._filename}: ${compStr}`;
+      }).join('\n') + (selfTestLogs.length > 3 ? `\n  … (${selfTestLogs.length-3} weitere)` : '');
+      results.push(failedSelfTests.length > 0
+        ? Utils.fail('EVDATA_SELFTEST_TRIGGER', 'selfTest-Protokollierung korrekt', CAT,
+          `${failedSelfTests.length} selfTest-Log(s) mit fehlgeschlagenen Tests:\n` +
+          failedSelfTests.map(l=>`  ${l._filename}: ${l.selfTestFailedComponents||'?'}`).join('\n'),
+          'allTestsArePositive darf nicht FALSE sein.', 'BSI TR-03151-1 §4.4.4')
+        : noResult.length > 0
+          ? Utils.warn('EVDATA_SELFTEST_TRIGGER', 'selfTest-Protokollierung korrekt', CAT,
+            `${selfTestLogs.length} selfTest-Log(s), ${noResult.length} ohne geparste Ergebnisdaten.\n${summary}`,
+            '', 'BSI TR-03151-1 §4.4.4')
+          : Utils.pass('EVDATA_SELFTEST_TRIGGER', 'selfTest-Protokollierung korrekt', CAT,
+            `${selfTestLogs.length} selfTest-Log(s), alle Selbsttests bestanden.\n${summary}`,
+            '', 'BSI TR-03151-1 §4.4.4'));
+    }
 
     // IMPLICIT_LOGOUT_PRESENT / ABSENT_SAME_USER – sequential session analysis
     // Build session timeline: sort all auth and logout events by signatureCounter
@@ -208,7 +247,7 @@ window.RulesCat17 = (function () {
     let implicitErrors = [], implicitSameUserErrors = [];
     let currentUser = null;
     for (const ev of sessionEvents) {
-      if (ev.logType === 'sys' && ev.eventType === 'authenticate') {
+      if (ev.logType === 'sys' && ev.eventType === 'authenticateUser') {
         const newUser = ev.eventTriggeredByUser || null;
         if (currentUser !== null && newUser !== null && newUser !== currentUser) {
           // User switch: check for implicit logout before this event
@@ -232,7 +271,7 @@ window.RulesCat17 = (function () {
           }
         }
         currentUser = newUser;
-      } else if (ev.logType === 'sys' && (ev.eventType === 'logout' || ev.eventType === 'logOut')) {
+      } else if (ev.logType === 'sys' && (ev.eventType === 'logOut' || ev.eventType === 'logOut')) {
         if (ev.logOutCaseStr === 'userLoggedOut' || ev.logOutCaseEnum === 3) currentUser = null;
         if (ev.logOutCaseStr === 'differentUserLoggedIn' || ev.logOutCaseEnum === 1) { /* handled above */ }
       }

@@ -92,25 +92,31 @@ window.RulesCat18 = (function() {
             `${wrongEvtType.length} Logs mit falschem eventType.`, '', 'BSI TR-03151-1 §4.5'));
 
     // UDT_SETIME_BEFORE / AFTER – parse eventData (UpdateTimeEventData ASN.1)
-    // UpdateTimeEventData ::= SEQUENCE { seTimeBeforeUpdate GeneralizedTime, seTimeAfterUpdate GeneralizedTime, slewSettings OPTIONAL }
+    // UpdateTimeEventData: Felder werden jetzt direkt vom ASN.1-Parser befüllt:
+    //   l.seTimeBeforeUpdate  (Integer/Unix-Timestamp oder Date)
+    //   l.seTimeAfterUpdate   (Integer/Unix-Timestamp oder Date)
+    //   l.slewSettings        (Uint8Array, optional)
+    function _fmtTime(t) {
+      if (t == null) return '?';
+      if (t instanceof Date) return t.toISOString().replace('T',' ').replace('Z',' UTC');
+      if (t < 1000000) return String(t);
+      try { return new Date(t * 1000).toISOString().replace('T',' ').replace('Z',' UTC'); } catch { return String(t); }
+    }
     let udtTimeResults = { before: [], after: [], slew: [], errors: [] };
     for (const l of udtsLogs) {
-      if (!l.eventData || l.eventData.length === 0) {
+      if (!l.eventData && l.seTimeBeforeUpdate == null) {
         udtTimeResults.errors.push(`${l._filename}: keine eventData`);
         continue;
       }
-      try {
-        const buf = l.eventData;
-        if (buf[0] !== 0x30) { udtTimeResults.errors.push(`${l._filename}: kein SEQUENCE-Tag`); continue; }
-        const seq = ASN1.readTLV(buf, 0);
-        if (!seq) { udtTimeResults.errors.push(`${l._filename}: SEQUENCE nicht lesbar`); continue; }
-        const kids = ASN1.parseChildren(buf, seq.valueStart, seq.valueEnd);
-        const timeKids = kids.filter(k => k.tag === 0x18 || k.tag === 0x17); // GeneralizedTime/UTCTime
-        if (timeKids.length >= 1) udtTimeResults.before.push({ log: l, val: timeKids[0] });
-        if (timeKids.length >= 2) udtTimeResults.after.push({ log: l, val: timeKids[1] });
-        const slewSeq = kids.find(k => k.tag === 0x30);
-        if (slewSeq) udtTimeResults.slew.push({ log: l, seq: slewSeq });
-      } catch(e) { udtTimeResults.errors.push(`${l._filename}: ${e.message}`); }
+      if (l.seTimeBeforeUpdate != null) {
+        udtTimeResults.before.push({ log: l, displayBefore: _fmtTime(l.seTimeBeforeUpdate) });
+      } else {
+        udtTimeResults.errors.push(`${l._filename}: seTimeBeforeUpdate nicht extrahierbar`);
+      }
+      if (l.seTimeAfterUpdate != null) {
+        udtTimeResults.after.push({ log: l, displayAfter: _fmtTime(l.seTimeAfterUpdate) });
+      }
+      if (l.slewSettings != null) udtTimeResults.slew.push({ log: l });
     }
 
     results.push(udtsLogs.length === 0
@@ -124,13 +130,19 @@ window.RulesCat18 = (function() {
               `${udtTimeResults.before.length} von ${udtsLogs.length} updateTime-Logs haben seTimeBeforeUpdate. Fehlend: ${udtTimeResults.errors.join(', ')}`,
               'seTimeBeforeUpdate muss vorhanden sein.', 'BSI TR-03151-1 §4.5')
           : Utils.pass('UDT_SETIME_BEFORE', 'seTimeBeforeUpdate vorhanden und plausibel', CAT,
-              `Alle ${udtsLogs.length} updateTime-Logs: seTimeBeforeUpdate (GeneralizedTime) vorhanden.`, '', 'BSI TR-03151-1 §4.5'));
+              `Alle ${udtsLogs.length} updateTime-Logs: seTimeBeforeUpdate vorhanden.\n` +
+              udtTimeResults.before.slice(0,5).map(e=>`  ${e.log._filename}: ${e.displayBefore}`).join('\n') +
+              (udtTimeResults.before.length > 5 ? `\n  … (${udtTimeResults.before.length-5} weitere)` : ''),
+              '', 'BSI TR-03151-1 §4.5'));
 
     results.push(udtsLogs.length === 0
       ? Utils.skip('UDT_SETIME_AFTER', 'seTimeAfterUpdate vorhanden', CAT, 'Keine updateTime-Logs.', '', 'BSI TR-03151-1 §4.5')
       : udtTimeResults.after.length === udtsLogs.length
         ? Utils.pass('UDT_SETIME_AFTER', 'seTimeAfterUpdate vorhanden', CAT,
-            `Alle ${udtsLogs.length} updateTime-Logs: seTimeAfterUpdate (GeneralizedTime) vorhanden.`, '', 'BSI TR-03151-1 §4.5')
+            `Alle ${udtsLogs.length} updateTime-Logs: seTimeAfterUpdate vorhanden.\n` +
+            udtTimeResults.after.slice(0,5).map(e=>`  ${e.log._filename}: ${e.displayAfter||'?'}`).join('\n') +
+            (udtTimeResults.after.length > 5 ? `\n  … (${udtTimeResults.after.length-5} weitere)` : ''),
+            '', 'BSI TR-03151-1 §4.5')
         : Utils.warn('UDT_SETIME_AFTER', 'seTimeAfterUpdate vorhanden', CAT,
             `${udtTimeResults.after.length} von ${udtsLogs.length} updateTime-Logs haben seTimeAfterUpdate.`,
             'seTimeAfterUpdate muss vorhanden sein.', 'BSI TR-03151-1 §4.5'));
