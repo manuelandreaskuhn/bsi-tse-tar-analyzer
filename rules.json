@@ -1145,6 +1145,15 @@
     "ref": "BSI TR-03151-1 SystemLogMessage logOut; II_AUT_17_B",
     "category": "EventData-Inhalt (EVDATA)"
   },
+  "EVDATA_LOGOUT_TRIGGER_TIMEOUT": {
+    "name": "Kein eventTriggeredByUser bei Abmeldung durch Timeout",
+    "trigger": "SystemLog-Nachricht mit eventType = logOut und logOutCase = timeout.",
+    "rule": "Wenn die Abmeldung durch einen Timeout ausgelöst wurde (logOutCase = timeout), darf eventTriggeredByUser nicht gesetzt sein.",
+    "pass_text": "eventTriggeredByUser nicht gesetzt.",
+    "fail_text": "eventTriggeredByUser gesetzt bei logOutCase = timeout.",
+    "ref": "BSI TR-03151-1 SystemLogMessage logOut; II_LGO_02 ---",
+    "category": "EventData-Inhalt (EVDATA)"
+  },
   "IMPLICIT_LOGOUT_PRESENT": {
     "name": "Implizites logOut-Log bei Nutzerwechsel vorhanden",
     "rule": "Wenn im Archiv eine authenticateUser-Log-Nachricht für Nutzer B vorhanden ist, deren eventTriggeredByUser-Feld einen Nutzer A enthält (A ≠ B), und die signatureCounter-Reihenfolge zeigt, dass Nutzer A zuvor authentifiziert war, muss im Archiv auch eine logOut-Log-Nachricht für Nutzer A mit logOutCase = differentUserLoggedIn vorhanden sein, deren signatureCounter zwischen dem letzten A-Auth-Eintrag und dem B-Auth-Eintrag liegt.",

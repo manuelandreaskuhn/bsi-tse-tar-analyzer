@@ -134,20 +134,21 @@ window.RulesCat17 = (function () {
           'LogOutEventData muss loggedOutUserId (UserId) enthalten.', 'BSI TR-03151-1 §4.4.2'));
 
       // EVDATA_LOGOUT_CASE – logOutCaseStr/Enum parsed by ASN.1 parser
-      // Valid: sessionTimeout(0), differentUserLoggedIn(1), userIdleTimeout(2), userLoggedOut(3)
-      const VALID_CASE_ENUMS = new Set([0, 1, 2, 3]);
+      // Valid: userCalledLogOut(0), differentUserLoggedIn(1), timeout(2)
+      const LOGOUT_CASE_NAMES = { 0: 'userCalledLogOut', 1: 'differentUserLoggedIn', 2: 'timeout' };
+      const VALID_CASE_ENUMS = new Set([0, 1, 2]);
       const noCase = logoutLogs.filter(l => l.logOutCaseStr == null && l.logOutCaseEnum == null);
       const badCase = logoutLogs.filter(l => l.logOutCaseEnum != null && !VALID_CASE_ENUMS.has(l.logOutCaseEnum));
       {
-        const caseStats = [0, 1, 2, 3].map(n => {
-          const label = ['sessionTimeout', 'differentUserLoggedIn', 'userIdleTimeout', 'userLoggedOut'][n];
+        const caseStats = [0, 1, 2].map(n => {
+          const label = LOGOUT_CASE_NAMES[n];
           const cnt = logoutLogs.filter(l => l.logOutCaseEnum === n).length;
           return cnt > 0 ? `${label}: ${cnt}` : null;
         }).filter(Boolean).join(', ');
         results.push(noCase.length === 0 && badCase.length === 0
           ? Utils.pass('EVDATA_LOGOUT_CASE', 'logoutCase vorhanden und gültig', CAT,
             `Alle ${logoutLogs.length} logout-Logs haben gültigen logoutCase. ${caseStats}`,
-            'logoutCase muss einer der gültigen Werte sein: sessionTimeout, differentUserLoggedIn, userIdleTimeout, userLoggedOut.',
+            `logoutCase muss einer der gültigen Werte sein: ${Object.entries(LOGOUT_CASE_NAMES).map(([k,v])=>`${v}(${k})`).join(', ')}.`,
             'BSI TR-03151-1 §4.4.2')
           : noCase.length > 0
             ? Utils.fail('EVDATA_LOGOUT_CASE', 'logoutCase vorhanden und gültig', CAT,
@@ -159,8 +160,9 @@ window.RulesCat17 = (function () {
       }
 
       // Categorise by case for the following checks
-      const implicitLogs = logoutLogs.filter(l => l.logOutCaseEnum === 1); // differentUserLoggedIn
-      const explicitLogs = logoutLogs.filter(l => l.logOutCaseEnum === 3); // userLoggedOut
+      const implicitLogs = logoutLogs.filter(l => l.logOutCaseEnum === 1 || l.logOutCaseStr === 'differentUserLoggedIn');
+      const explicitLogs = logoutLogs.filter(l => l.logOutCaseEnum === 0 || l.logOutCaseStr === 'userCalledLogOut');
+      const timeoutLogs  = logoutLogs.filter(l => l.logOutCaseEnum === 2 || l.logOutCaseStr === 'timeout');
 
       // EVDATA_LOGOUT_NO_TRIGGER_IMPLICIT – differentUserLoggedIn must NOT have eventTriggeredByUser
       {
@@ -193,19 +195,34 @@ window.RulesCat17 = (function () {
               `eventOrigin muss ${IMPLICIT_ORIGINS.join('/')} sein.`, 'BSI TR-03151-1 §4.4.2'));
       }
 
-      // EVDATA_LOGOUT_TRIGGER_EXPLICIT – userLoggedOut must have eventTriggeredByUser
+      // EVDATA_LOGOUT_TRIGGER_EXPLICIT – userCalledLogOut must have eventTriggeredByUser
       {
         const noTrigger = explicitLogs.filter(l => !l.eventTriggeredByUser);
         results.push(explicitLogs.length === 0
           ? Utils.info('EVDATA_LOGOUT_TRIGGER_EXPLICIT', 'Trigger bei explizitem Logout vorhanden', CAT,
-            'Keine logout-Logs mit logoutCase=userLoggedOut im Archiv.', '', 'BSI TR-03151-1 §4.4.2')
+            'Keine logout-Logs mit logoutCase=userCalledLogOut im Archiv.', '', 'BSI TR-03151-1 §4.4.2')
           : noTrigger.length === 0
             ? Utils.pass('EVDATA_LOGOUT_TRIGGER_EXPLICIT', 'Trigger bei explizitem Logout vorhanden', CAT,
-              `Alle ${explicitLogs.length} expliziten Logout-Logs (userLoggedOut): eventTriggeredByUser vorhanden.`,
-              'Bei logoutCase=userLoggedOut muss eventTriggeredByUser gesetzt sein.', 'BSI TR-03151-1 §4.4.2')
+              `Alle ${explicitLogs.length} expliziten Logout-Logs (userCalledLogOut): eventTriggeredByUser vorhanden.`,
+              'Bei logoutCase=userCalledLogOut muss eventTriggeredByUser gesetzt sein.', 'BSI TR-03151-1 §4.4.2')
             : Utils.fail('EVDATA_LOGOUT_TRIGGER_EXPLICIT', 'Trigger bei explizitem Logout vorhanden', CAT,
               `${noTrigger.length} explizite Logout-Logs ohne eventTriggeredByUser: ${noTrigger.map(l => l._filename).join(', ')}`,
-              'Bei logoutCase=userLoggedOut muss eventTriggeredByUser gesetzt sein.', 'BSI TR-03151-1 §4.4.2'));
+              'Bei logoutCase=userCalledLogOut muss eventTriggeredByUser gesetzt sein.', 'BSI TR-03151-1 §4.4.2'));
+      }
+
+      // EVDATA_LOGOUT_TRIGGER_TIMEOUT – timeout-Logs should not have eventTriggeredByUser
+      {
+        const triggerOnTimeout = timeoutLogs.filter(l => l.eventTriggeredByUser);
+        results.push(timeoutLogs.length === 0
+          ? Utils.info('EVDATA_LOGOUT_TRIGGER_TIMEOUT', 'Trigger bei Timeout-Logout', CAT,
+            'Keine logout-Logs mit logoutCase=timeout im Archiv.', '', 'BSI TR-03151-1 §4.4.2')
+          : triggerOnTimeout.length === 0
+            ? Utils.pass('EVDATA_LOGOUT_TRIGGER_TIMEOUT', 'Trigger bei Timeout-Logout', CAT,
+              `Alle ${timeoutLogs.length} Timeout-Logout-Logs: kein eventTriggeredByUser gesetzt.`,
+              'Bei logoutCase=timeout sollte kein eventTriggeredByUser gesetzt sein.', 'BSI TR-03151-1 §4.4.2')
+            : Utils.fail('EVDATA_LOGOUT_TRIGGER_TIMEOUT', 'Trigger bei Timeout-Logout', CAT,
+              `${triggerOnTimeout.length} Timeout-Logout-Logs mit eventTriggeredByUser: ${triggerOnTimeout.map(l => l._filename).join(', ')}`,
+              'Bei logoutCase=timeout sollte kein eventTriggeredByUser gesetzt sein.', 'BSI TR-03151-1 §4.4.2'));
       }
     }
 
@@ -242,38 +259,41 @@ window.RulesCat17 = (function () {
     }
 
     // IMPLICIT_LOGOUT_PRESENT / ABSENT_SAME_USER – sequential session analysis
-    // Build session timeline: sort all auth and logout events by signatureCounter
+    // Build session timeline: sort all auth and logout events by signatureCounter.
+    // Expected log order per TR-03151-1: authenticateUser(B) is logged first (counter K),
+    // then logOut(differentUserLoggedIn, A) follows immediately after (counter K+1).
     const sessionEvents = [...authLogs, ...logoutLogs].sort((a, b) => (a.signatureCounter || 0) - (b.signatureCounter || 0));
     let implicitErrors = [], implicitSameUserErrors = [];
     let currentUser = null;
-    for (const ev of sessionEvents) {
-      if (ev.logType === 'sys' && ev.eventType === 'authenticateUser') {
-        const newUser = ev.eventTriggeredByUser || null;
+    for (let idx = 0; idx < sessionEvents.length; idx++) {
+      const ev = sessionEvents[idx];
+
+      if (ev.eventType === 'authenticateUser') {
+        const newUser = ev.eventDataUserId || null; // user being authenticated (from AuthenticateUserEventData)
+        // Per TR-03151-1: if a different user was already logged in, the TSE logs
+        // logOut(differentUserLoggedIn) FIRST, then authenticateUser. So check the previous event.
+        const prevEv = idx > 0 ? sessionEvents[idx - 1] : null;
+        const prevIsImplicitLogout = prevEv != null &&
+          prevEv.eventType === 'logOut' &&
+          (prevEv.logOutCaseEnum === 1 || prevEv.logOutCaseStr === 'differentUserLoggedIn');
+
         if (currentUser !== null && newUser !== null && newUser !== currentUser) {
-          // User switch: check for implicit logout before this event
-          const implicitBefore = logoutLogs.find(l =>
-            (l.logOutCaseStr === 'differentUserLoggedIn' || l.logOutCaseEnum === 1) &&
-            l.signatureCounter < ev.signatureCounter &&
-            l.signatureCounter > (sessionEvents.filter(e => e.signatureCounter < ev.signatureCounter).pop()?.signatureCounter || 0)
-          );
-          if (!implicitBefore) {
-            implicitErrors.push(`Nutzerwechsel ${currentUser}→${newUser} bei ${ev._filename} ohne impliziten logout`);
+          // User switch: the immediately preceding event must be logOut(differentUserLoggedIn)
+          if (!prevIsImplicitLogout) {
+            implicitErrors.push(`Nutzerwechsel ${currentUser}→${newUser} bei ${ev._filename}: kein vorheriges implizites logOut(differentUserLoggedIn)`);
           }
         }
-        if (currentUser !== null && newUser === currentUser) {
-          // Same user re-auth: must NOT have implicit logout
-          const implicitBetween = logoutLogs.find(l =>
-            (l.logOutCaseStr === 'differentUserLoggedIn' || l.logOutCaseEnum === 1) &&
-            l.signatureCounter < ev.signatureCounter
-          );
-          if (implicitBetween) {
-            implicitSameUserErrors.push(`Gleicher Nutzer ${currentUser} re-auth (${ev._filename}), aber implizites logout (${implicitBetween._filename}) vorhanden`);
+        if (currentUser !== null && newUser !== null && newUser === currentUser) {
+          // Same user re-auth: must NOT be preceded by an implicit logout
+          if (prevIsImplicitLogout) {
+            implicitSameUserErrors.push(`Gleicher Nutzer ${currentUser} re-auth (${ev._filename}), aber vorheriges implizites logout (${prevEv._filename}) vorhanden`);
           }
         }
         currentUser = newUser;
-      } else if (ev.logType === 'sys' && (ev.eventType === 'logOut' || ev.eventType === 'logOut')) {
-        if (ev.logOutCaseStr === 'userLoggedOut' || ev.logOutCaseEnum === 3) currentUser = null;
-        if (ev.logOutCaseStr === 'differentUserLoggedIn' || ev.logOutCaseEnum === 1) { /* handled above */ }
+      } else if (ev.eventType === 'logOut') {
+        if (ev.logOutCaseEnum === 0 || ev.logOutCaseStr === 'userCalledLogOut') currentUser = null;
+        if (ev.logOutCaseEnum === 2 || ev.logOutCaseStr === 'timeout') currentUser = null;
+        // differentUserLoggedIn: keep currentUser until the following authenticateUser updates it
       }
     }
     results.push(implicitErrors.length === 0

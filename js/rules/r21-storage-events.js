@@ -78,11 +78,12 @@ window.RulesCat21 = (function() {
     // ── STOR_EVT_SYSLOG_EVTYPE_STATS ─────────────────────────────────────
     // Upgrade from INFO to PASS – produce a real distribution and flag unknown eventTypes
     const KNOWN_EVT_TYPES = new Set([
-      'initialize','selfTest','updateTime','logOut','authenticateUser','unblockUser',
-      'deleteStoredData','disableSecureElement','enterSecureState','exitSecureState',
-      'lockTransactionLogging','unlockTransactionLogging','setDescription','updateDescription',
-      'selfTest','updateSoftware','updateSoftwareCompleted','readData','updateCertificate',
-      'recertification','lockDevice','unlockDevice'
+      'initialize','selfTest','updateTime','logOut','authenticateUser',
+      'deleteLogMessages','disableSecureElement','enterSecureState','exitSecureState',
+      'lockTransactionLogging','unlockTransactionLogging','setDescription',
+      'unblockPin', 'updateDevice', 'updateDeviceCompleted',
+      'configureLogging', 'registerClient', 'deregisterClient',
+      'authenticateSmaAdmin', 'startAudit'
     ]);
     const evtTypes = {};
     sysLogs.forEach(l=>{ evtTypes[l.eventType||'?'] = (evtTypes[l.eventType||'?']||0)+1; });

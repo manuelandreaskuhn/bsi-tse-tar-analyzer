@@ -520,7 +520,7 @@ const ASN1 = (() => {
 
           // logOut: loggedOutUserId (UTF8String / PrintableString) + logOutCase (ENUMERATED)
           if (r.eventType === 'logOut') {
-            const LOGOUT_CASE = { 0:'sessionTimeout', 1:'differentUserLoggedIn', 2:'userIdleTimeout', 3:'userLoggedOut' };
+            const LOGOUT_CASE = { 0:'userCalledLogOut', 1:'differentUserLoggedIn', 2:'timeout' };
             const STR_TAGS = [0x0C, 0x13, 0x16, 0x1A, 0x1B];
             const strKids  = kids.filter(k => STR_TAGS.includes(k.tag));
             const enumLO   = kids.filter(k => k.tag === 0x0A);
@@ -1000,32 +1000,39 @@ const ASN1 = (() => {
     const unknownLines = [];
 
     for (const line of lines) {
-      // Parse quoted CSV: "key:","value","key:","value",...
-      const fields = [];
-      let cur = '', inQ = false;
-      for (let i = 0; i < line.length; i++) {
-        const c = line[i];
-        if (c === '"') inQ = !inQ;
-        else if (c === ',' && !inQ) { fields.push(cur); cur = ''; }
-        else cur += c;
-      }
-      fields.push(cur);
-      // Clean up each field: trim + remove any remaining outer quotes
-      const cl = fields.map(f => f.trim().replace(/^[""]|[""]$/g, '').trim());
-
-      if (cl[0] === 'component:') {
-        // Fields: component:, <type>, key:, val, key:, val, ...
-        const obj = { component: cl[1] || '', validComponent: false };
-        for (let i = 2; i + 1 < cl.length; i += 2) {
-          const k = cl[i].replace(/:$/, '');
-          const v = cl[i + 1] || '';
-          if (k) obj[k] = v;
+      try {
+        // Parse quoted CSV: "key:","value","key:","value",...
+        const fields = [];
+        let cur = '', inQ = false;
+        for (let i = 0; i < line.length; i++) {
+          const c = line[i];
+          if (c === '"') inQ = !inQ;
+          else if (c === ',' && !inQ) { fields.push(cur); cur = ''; }
+          else cur += c;
         }
-        obj.validComponent = ['device','storage','integration-interface','CSP','SMA'].includes(obj.component);
-        components.push(obj);
-      } else if (cl[0] === 'description:') {
-        description = cl[1] || '';
-      } else {
+        fields.push(cur);
+        // Clean up each field: trim + remove any remaining outer quotes
+        const cl = fields.map(f => f.trim().replace(/^[""]|[""]$/g, '').trim());
+
+        if (cl[0] === 'component:') {
+          // Fields: component:, <type>, key:, val, key:, val, ...
+          const obj = { component: cl[1] || '', validComponent: false };
+          for (let i = 2; i + 1 < cl.length; i += 2) {
+            const k = cl[i].replace(/:$/, '');
+            const v = cl[i + 1] || '';
+            if (k) obj[k] = v;
+          }
+          obj.validComponent = ['device','storage','integration-interface','CSP','SMA'].includes(obj.component);
+          components.push(obj);
+        } else if (cl[0] === 'description:') {
+          // Use ?? so an empty string value (line present, value empty) stays '' rather than being
+          // treated as absent. null/absent stays null (description line not encountered at all).
+          description = cl[1] ?? '';
+        } else {
+          unknownLines.push(line);
+        }
+      } catch (_) {
+        // Line could not be parsed → treat as unknown, description stays null
         unknownLines.push(line);
       }
     }

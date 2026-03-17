@@ -17,6 +17,12 @@ window.RulesCat24 = (function() {
         const kids = ASN1.parseChildren(buf, seq.valueStart, seq.valueEnd);
         return { isEmpty: false, kids, seq };
       }
+      // Handle raw string TLV (e.g. setDescription eventData = PrintableString/UTF8String directly)
+      const STR_TAGS = [0x0C, 0x13, 0x16, 0x1A, 0x1B];
+      if (STR_TAGS.includes(buf[0])) {
+        const tlv = ASN1.readTLV(buf, 0);
+        if (tlv) return { isEmpty: false, kids: [tlv] };
+      }
       return { isEmpty: false, kids: [], error: `Unbekannter Tag 0x${buf[0].toString(16)}` };
     } catch(e) { return { isEmpty: false, kids: [], error: e.message }; }
   }
@@ -94,95 +100,118 @@ window.RulesCat24 = (function() {
             'Nach disableSecureElement dürfen keine weiteren Log-Einträge folgen.', REF));
     }
 
-    // ── UDD (updateSoftware) ──────────────────────────────────────────────
-    const uddAll = sysLogs.filter(l=>l.eventType==='updateSoftware');
+    // ── UDD (updateDevice / updateDeviceCompleted) ────────────────────────
+    // Per BSI TR-03153-1 §9.10:
+    //   updateDevice            (SOLLTE) – start log, contains pre-update component versions
+    //   updateDeviceCompleted   (MUSS)   – completion log, contains post-update component versions
+    // Both logs share the same eventData structure: SEQUENCE of component info
+    //   (componentName, manufacturer, model, version, [certificationID])
+    // The event type itself distinguishes start from completed — no heuristic needed.
+    const uddStart = sysLogs.filter(l => l.eventType === 'updateDevice');
+    const uddComp  = sysLogs.filter(l => l.eventType === 'updateDeviceCompleted');
+    const uddAll   = [...uddStart, ...uddComp];
+
     if (uddAll.length === 0) {
       ['UDD_LOG_START_PRESENT','UDD_LOG_COMP_PRESENT','UDD_LOG_EVTYPE_START','UDD_LOG_EVTYPE_COMP',
        'UDD_EVDATA_ASN1','UDD_COMP_NAMES','UDD_OUTCOME_VALID','UDD_OUTCOME_SUCCESS_NO_REASON','UDD_NO_USER_EXTERNAL'].forEach(id =>
-        results.push(Utils.skip(id, id, CAT, 'Keine updateSoftware-Logs.', '', REF)));
+        results.push(Utils.skip(id, id, CAT, 'Keine updateDevice/updateDeviceCompleted-Logs.', '', REF)));
     } else {
-      // Parse eventData of each UDD log to classify start vs completed
-      const VALID_OUTCOMES = ['updateSuccessful','updateFailed'];
-      const VALID_COMPONENTS = ['device','storage','integration-interface','CSP','SMA'];
+      const VALID_OUTCOMES   = ['updateSuccessful', 'updateFailed'];
+      const VALID_COMPONENTS = ['device', 'storage', 'integration-interface', 'CSP', 'SMA'];
 
-      const uddParsed = uddAll.map(l => {
+      // Helper: parse component info from eventData SEQUENCE
+      // Fields: componentName (UTF8/Printable), manufacturer, model, version (UTF8/Printable strings), updateOutcome (ENUM, completed only)
+      function parseUddEvtData(l) {
         const p = parseEvtData(l);
-        let phase = null, componentName = null, updateOutcome = null, hasReasonForFailure = false, hasUserTrigger = !!l.eventTriggeredByUser;
+        let componentName = null, updateOutcome = null, hasReasonForFailure = false;
         if (p.kids.length > 0) {
-          // UpdateDeviceStartEventData: SEQUENCE { componentName UTF8String, ... }
-          // UpdateDeviceCompletedEventData: SEQUENCE { componentName, updateOutcome ENUM, [reasonForFailure], ... }
-          const strKid = p.kids.find(k=>[0x0C,0x13,0x16,0x1A,0x1B].includes(k.tag));
-          if (strKid) componentName = readStr(strKid);
-          const enumKid = p.kids.find(k=>k.tag===0x0A);
+          const strKids = p.kids.filter(k => [0x0C,0x13,0x16,0x1A,0x1B].includes(k.tag));
+          if (strKids.length > 0) componentName = readStr(strKids[0]);
+          const enumKid = p.kids.find(k => k.tag === 0x0A);
           if (enumKid) {
-            let ev=0; for(const b of enumKid.value) ev=ev*256+b;
-            updateOutcome = ev===0 ? 'updateSuccessful' : ev===1 ? 'updateFailed' : `ENUM:${ev}`;
-            phase = 'completed';
-          } else {
-            phase = 'start';
+            let ev = 0; for (const b of enumKid.value) ev = ev * 256 + b;
+            updateOutcome = ev === 0 ? 'updateSuccessful' : ev === 1 ? 'updateFailed' : `ENUM:${ev}`;
+            // reasonForFailure is an optional string after the outcome enum
+            hasReasonForFailure = strKids.length > 1;
           }
-          hasReasonForFailure = p.kids.some(k=>[0x0C,0x13,0x16,0x1A,0x1B].includes(k.tag) && p.kids.indexOf(k) > 0);
         }
-        return { log: l, phase, componentName, updateOutcome, hasReasonForFailure, hasUserTrigger, parseError: p.error };
-      });
+        return { componentName, updateOutcome, hasReasonForFailure, parseError: p.error };
+      }
 
-      const uddStart = uddParsed.filter(u=>u.phase==='start');
-      const uddComp  = uddParsed.filter(u=>u.phase==='completed');
+      const uddStartParsed = uddStart.map(l => ({ log: l, ...parseUddEvtData(l) }));
+      const uddCompParsed  = uddComp.map(l  => ({ log: l, ...parseUddEvtData(l) }));
 
+      // UDD_LOG_START_PRESENT – updateDevice SOLLTE vorhanden sein
       results.push(uddStart.length > 0
-        ? Utils.pass('UDD_LOG_START_PRESENT', 'updateSoftware-Start-Log vorhanden', CAT,
-            `${uddStart.length} updateSoftware-Start-Log(s) gefunden.`, '', REF)
-        : Utils.warn('UDD_LOG_START_PRESENT', 'updateSoftware-Start-Log vorhanden', CAT,
-            `${uddAll.length} updateSoftware-Logs, aber kein Start-Log erkannt (eventData-Parsing: kein ENUM ohne updateOutcome).`, '', REF));
+        ? Utils.pass('UDD_LOG_START_PRESENT', 'updateDevice-Start-Log vorhanden', CAT,
+            `${uddStart.length} updateDevice-Log(s) gefunden.`, '', REF)
+        : Utils.warn('UDD_LOG_START_PRESENT', 'updateDevice-Start-Log vorhanden', CAT,
+            'Kein updateDevice-Log gefunden. Das Start-Log SOLLTE erstellt werden.',
+            'BSI TR-03153-1 §9.10: updateDevice-System-Log SOLLTE bei jeder Aktualisierung erstellt werden.', REF));
 
+      // UDD_LOG_COMP_PRESENT – updateDeviceCompleted MUSS vorhanden sein
       results.push(uddComp.length > 0
-        ? Utils.pass('UDD_LOG_COMP_PRESENT', 'updateSoftware-Completed-Log vorhanden', CAT,
-            `${uddComp.length} updateSoftware-Completed-Log(s) gefunden.`, '', REF)
-        : Utils.warn('UDD_LOG_COMP_PRESENT', 'updateSoftware-Completed-Log vorhanden', CAT,
-            `${uddAll.length} updateSoftware-Logs, aber kein Completed-Log erkannt (erwartet: eventData mit updateOutcome ENUM).`, '', REF));
+        ? Utils.pass('UDD_LOG_COMP_PRESENT', 'updateDeviceCompleted-Log vorhanden', CAT,
+            `${uddComp.length} updateDeviceCompleted-Log(s) gefunden.`, '', REF)
+        : Utils.fail('UDD_LOG_COMP_PRESENT', 'updateDeviceCompleted-Log vorhanden', CAT,
+            'Kein updateDeviceCompleted-Log gefunden.',
+            'BSI TR-03153-1 §9.10: updateDeviceCompleted-Log MUSS bei jeder Aktualisierung erstellt werden.', REF));
 
-      results.push(Utils.pass('UDD_LOG_EVTYPE_START', 'eventType = updateSoftware für Start-Logs', CAT,
-        `Alle ${uddAll.length} Logs haben eventType = "updateSoftware".`, '', REF));
-      results.push(Utils.pass('UDD_LOG_EVTYPE_COMP', 'eventType = updateSoftware für Completed-Logs', CAT,
-        `Alle ${uddAll.length} Logs haben eventType = "updateSoftware".`, '', REF));
+      // UDD_LOG_EVTYPE_START – trivially true since filtered by eventType
+      results.push(Utils.pass('UDD_LOG_EVTYPE_START', 'eventType = updateDevice für Start-Logs', CAT,
+        uddStart.length > 0
+          ? `Alle ${uddStart.length} Start-Logs haben eventType = "updateDevice".`
+          : 'Keine updateDevice-Logs vorhanden.', '', REF));
 
-      // UDD_EVDATA_ASN1
-      const asn1Fails = uddParsed.filter(u=>u.parseError);
+      // UDD_LOG_EVTYPE_COMP – trivially true since filtered by eventType
+      results.push(Utils.pass('UDD_LOG_EVTYPE_COMP', 'eventType = updateDeviceCompleted für Completed-Logs', CAT,
+        uddComp.length > 0
+          ? `Alle ${uddComp.length} Completed-Logs haben eventType = "updateDeviceCompleted".`
+          : 'Keine updateDeviceCompleted-Logs vorhanden.', '', REF));
+
+      // UDD_EVDATA_ASN1 – eventData parsable as ASN.1 SEQUENCE
+      const asn1Fails = [...uddStartParsed, ...uddCompParsed].filter(u => u.parseError);
       results.push(asn1Fails.length === 0
         ? Utils.pass('UDD_EVDATA_ASN1', 'eventData ist gültige ASN.1-Struktur', CAT,
-            `Alle ${uddAll.length} updateSoftware-Logs: eventData als ASN.1 SEQUENCE parsbar.`, '', REF)
+            `Alle ${uddAll.length} updateDevice-Logs: eventData als ASN.1 SEQUENCE parsbar.`, '', REF)
         : Utils.fail('UDD_EVDATA_ASN1', 'eventData ist gültige ASN.1-Struktur', CAT,
-            `${asn1Fails.length} Logs mit ASN.1-Parsing-Fehler: ${asn1Fails.map(u=>`${u.log._filename}: ${u.parseError}`).join('; ')}`,
+            `${asn1Fails.length} Logs mit ASN.1-Parsing-Fehler:\n${asn1Fails.map(u=>`  ${u.log._filename}: ${u.parseError}`).join('\n')}`,
             'eventData muss eine gültige ASN.1-SEQUENCE sein.', REF));
 
-      // UDD_COMP_NAMES
-      const badComp = uddParsed.filter(u=>u.componentName && !VALID_COMPONENTS.includes(u.componentName));
-      const noComp  = uddParsed.filter(u=>!u.componentName && !u.parseError);
-      if (noComp.length > 0) {
-        results.push(Utils.warn('UDD_COMP_NAMES', 'componentName ist gültiger Komponentenbezeichner', CAT,
-          `${noComp.length} Logs ohne erkennbaren componentName.`, `Erlaubt: ${VALID_COMPONENTS.join(', ')}`, REF));
-      } else {
-        results.push(badComp.length === 0
+      // UDD_COMP_NAMES – componentName must be a known value
+      const allParsed = [...uddStartParsed, ...uddCompParsed];
+      const badComp = allParsed.filter(u => u.componentName && !VALID_COMPONENTS.includes(u.componentName));
+      const noComp  = allParsed.filter(u => !u.componentName && !u.parseError);
+      results.push(noComp.length > 0
+        ? Utils.warn('UDD_COMP_NAMES', 'componentName ist gültiger Komponentenbezeichner', CAT,
+            `${noComp.length} Logs ohne erkannten componentName (eventData-Parsing).`,
+            `Erlaubt: ${VALID_COMPONENTS.join(', ')}`, REF)
+        : badComp.length === 0
           ? Utils.pass('UDD_COMP_NAMES', 'componentName ist gültiger Komponentenbezeichner', CAT,
               `Alle geparsten Logs: componentName ∈ {${VALID_COMPONENTS.join(', ')}}.`, '', REF)
           : Utils.fail('UDD_COMP_NAMES', 'componentName ist gültiger Komponentenbezeichner', CAT,
-              `${badComp.length} Logs mit ungültigem componentName: ${badComp.map(u=>`${u.log._filename}→"${u.componentName}"`).join(', ')}`,
+              `${badComp.length} Logs mit ungültigem componentName:\n${badComp.map(u=>`  ${u.log._filename} → "${u.componentName}"`).join('\n')}`,
               `Erlaubt: ${VALID_COMPONENTS.join(', ')}`, REF));
-      }
 
-      // UDD_OUTCOME_VALID
-      const badOutcome = uddComp.filter(u=>!VALID_OUTCOMES.includes(u.updateOutcome||''));
+      // UDD_OUTCOME_VALID – updateDeviceCompleted must have a valid updateOutcome ENUM
+      const badOutcome = uddCompParsed.filter(u => u.updateOutcome && !VALID_OUTCOMES.includes(u.updateOutcome));
+      const noOutcome  = uddCompParsed.filter(u => !u.updateOutcome && !u.parseError);
       results.push(uddComp.length === 0
-        ? Utils.skip('UDD_OUTCOME_VALID', 'updateOutcome hat gültigen Wert', CAT, 'Keine Completed-Logs.', '', REF)
-        : badOutcome.length === 0
-          ? Utils.pass('UDD_OUTCOME_VALID', 'updateOutcome hat gültigen Wert', CAT,
-              `Alle ${uddComp.length} Completed-Logs: updateOutcome ∈ {${VALID_OUTCOMES.join(', ')}}.`, '', REF)
-          : Utils.fail('UDD_OUTCOME_VALID', 'updateOutcome hat gültigen Wert', CAT,
-              `${badOutcome.length} Logs mit ungültigem updateOutcome: ${badOutcome.map(u=>`${u.log._filename}→"${u.updateOutcome}"`).join(', ')}`,
-              `Erlaubt: ${VALID_OUTCOMES.join(', ')}`, REF));
+        ? Utils.skip('UDD_OUTCOME_VALID', 'updateOutcome hat gültigen Wert', CAT, 'Keine updateDeviceCompleted-Logs.', '', REF)
+        : noOutcome.length > 0
+          ? Utils.warn('UDD_OUTCOME_VALID', 'updateOutcome hat gültigen Wert', CAT,
+              `${noOutcome.length} updateDeviceCompleted-Logs ohne erkanntes updateOutcome-ENUM.`,
+              `updateDeviceCompleted muss updateOutcome ∈ {${VALID_OUTCOMES.join(', ')}} enthalten.`, REF)
+          : badOutcome.length === 0
+            ? Utils.pass('UDD_OUTCOME_VALID', 'updateOutcome hat gültigen Wert', CAT,
+                `Alle ${uddComp.length} updateDeviceCompleted-Logs: updateOutcome ∈ {${VALID_OUTCOMES.join(', ')}}.`,
+                '', REF)
+            : Utils.fail('UDD_OUTCOME_VALID', 'updateOutcome hat gültigen Wert', CAT,
+                `${badOutcome.length} Logs mit ungültigem updateOutcome:\n${badOutcome.map(u=>`  ${u.log._filename} → "${u.updateOutcome}"`).join('\n')}`,
+                `Erlaubt: ${VALID_OUTCOMES.join(', ')}`, REF));
 
-      // UDD_OUTCOME_SUCCESS_NO_REASON: success → no reasonForFailure
-      const successWithReason = uddComp.filter(u=>u.updateOutcome==='updateSuccessful' && u.hasReasonForFailure);
+      // UDD_OUTCOME_SUCCESS_NO_REASON – updateSuccessful must not have reasonForFailure
+      const successWithReason = uddCompParsed.filter(u => u.updateOutcome === 'updateSuccessful' && u.hasReasonForFailure);
       results.push(successWithReason.length === 0
         ? Utils.pass('UDD_OUTCOME_SUCCESS_NO_REASON', 'Kein reasonForFailure bei erfolgreichem Update', CAT,
             'Keine erfolgreichen Updates mit reasonForFailure gefunden.', '', REF)
@@ -190,8 +219,8 @@ window.RulesCat24 = (function() {
             `${successWithReason.length} erfolgreiche Updates mit reasonForFailure: ${successWithReason.map(u=>u.log._filename).join(', ')}`,
             'Bei updateOutcome=updateSuccessful darf reasonForFailure nicht vorhanden sein.', REF));
 
-      // UDD_NO_USER_EXTERNAL: external updates (eventOrigin != integration-interface) must not have eventTriggeredByUser
-      const externalWithUser = uddAll.filter(l=>l.eventOrigin!=='integration-interface' && l.eventTriggeredByUser);
+      // UDD_NO_USER_EXTERNAL – external updates must not have eventTriggeredByUser
+      const externalWithUser = uddAll.filter(l => l.eventOrigin !== 'integration-interface' && l.eventTriggeredByUser);
       results.push(externalWithUser.length === 0
         ? Utils.pass('UDD_NO_USER_EXTERNAL', 'Kein eventTriggeredByUser bei externem Update', CAT,
             'Keine externen Updates (eventOrigin ≠ integration-interface) mit eventTriggeredByUser.', '', REF)
@@ -250,7 +279,23 @@ window.RulesCat24 = (function() {
         results.push(Utils.skip('SDE_INFO_DESC', 'description in info.csv stimmt mit setDescription überein', CAT,
           'Kein info.csv oder keine Beschreibung aus eventData extrahierbar.', '', REF));
       } else {
-        const csvDesc = infoRows ? infoRows.description : null;
+        // Parse info.csv fresh from tarResult (same strategy as r03) so that any exception in
+        // the pre-computed infoRows from buildCTX doesn't cause a false "kein description-Feld" warn.
+        let csvDesc = null; // null = line absent / parse error; '' = present but empty
+        if (infoRows) {
+          csvDesc = infoRows.description;
+        } else if (tarResult) {
+          for (const [k, entry] of tarResult.files) {
+            if (k.toLowerCase() === 'info.csv') {
+              try {
+                const rawText = new TextDecoder('utf-8').decode(entry.data);
+                const parsed = ASN1.parseInfoCsv(rawText);
+                csvDesc = parsed.description; // null if no description: line, string otherwise
+              } catch(_) { /* csvDesc stays null */ }
+              break;
+            }
+          }
+        }
         if (csvDesc === null) {
           results.push(Utils.warn('SDE_INFO_DESC', 'description in info.csv stimmt mit setDescription überein', CAT,
             'info.csv enthält kein description-Feld.', '', REF));
