@@ -194,9 +194,15 @@ const ASN1 = (() => {
             }
           } catch(e2) { /* ignore */ }
         }
-        else if (tag === 0x04) { // OCTET STRING – serialNumber or signatureValue
-          if (result.serialNumber === null) result.serialNumber = f.value;
-          else if (result.signatureValue === null) result.signatureValue = f.value;
+        else if (tag === 0x04) { // OCTET STRING – serialNumber / seAuditData (audit) / signatureValue
+          if (result.serialNumber === null) {
+            result.serialNumber = f.value;
+          } else if (result.logType === 'audit' && result.seAuditData === null) {
+            // AuditLogMessage: 2nd OCTET STRING = seAuditData, 3rd = signatureValue
+            result.seAuditData = f.value;
+          } else if (result.signatureValue === null) {
+            result.signatureValue = f.value;
+          }
         }
         // Context-specific tags for TransactionLog certified data
         else if (tag === 0xa0 || tag === 0x80) { // [0] IMPLICIT or EXPLICIT – operationType
@@ -265,13 +271,7 @@ const ASN1 = (() => {
         }
       }
 
-      if (result.logType === 'audit') {
-        for (const f of fields) {
-          if (f.tag === 0x04 && result.seAuditData === null && result.serialNumber !== null) {
-            result.seAuditData = f.value;
-          }
-        }
-      }
+
 
       // Find signatureCounter and signatureCreationTime more reliably
       // They appear as tagged INTEGERs after the certified data
