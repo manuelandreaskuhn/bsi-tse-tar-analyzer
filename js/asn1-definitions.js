@@ -141,6 +141,14 @@ window.ASN1Definitions = (() => {
     { name: 'deviceInformationBeforeUpdate', type: 'DeviceInformationSet', required: true, desc: 'Geräteinformationen vor dem Software-Update.' },
   ];
 
+  const EVT_ENTER_SECURE_STATE = [
+    // timeOfEvent ist OPTIONAL im ASN.1, aber konditional verpflichtend:
+    // MUSS vorhanden sein, wenn die Log-Nachricht nicht unmittelbar beim Fehlereintritt
+    // erzeugt werden konnte (z.B. nach einem Neustart).
+    { name: 'timeOfEvent', type: 'Time', tag: null, required: false,
+      desc: 'Zeitpunkt des Eintritts in den sicheren Zustand. OPTIONAL im ASN.1, aber konditional verpflichtend: muss vorhanden sein, wenn der Eintritt in den sicheren Zustand nicht sofort protokolliert werden konnte (z.B. nach Neustart).' },
+  ];
+
   const EVT_UPDATE_TIME = [
     { name: 'seTimeBeforeUpdate', type: 'Time',                    required: true,  desc: 'Zeitwert des Secure Element vor der Aktualisierung.' },
     { name: 'seTimeAfterUpdate',  type: 'Time',                    required: true,  desc: 'Zeitwert des Secure Element nach der Aktualisierung.' },
@@ -218,6 +226,39 @@ window.ASN1Definitions = (() => {
       innerStruct: 'SystemLogMessage',
       outerFields: OUTER_SYS,
       innerFields: makeSysInner('deregisterClient', EVT_DEREGISTER_CLIENT),
+    },
+    enterSecureState: {
+      logType: 'sys',
+      eventType: 'enterSecureState',
+      title: 'enterSecureState – System-Log',
+      outerStruct: 'LogMessage (SystemLog)',
+      innerStruct: 'EnterSecureStateLogMessage',
+      outerFields: OUTER_SYS,
+      // EnterSecureStateLogMessage verwendet andere Kontext-Tag-Nummern als die
+      // generische SystemLogMessage: [3]=eventOrigin, [4]=eventTriggeredByUser,
+      // [5]=eventData, [6]=additionalInternalData.
+      innerFields: [
+        { name: 'version',               type: 'INTEGER (3)',                    tag: null,           required: true,  desc: 'Version des Log-Nachricht-Formats. MUSS 3 sein.',                                         origin: 'Gerät' },
+        { name: 'certifiedDataType',     type: 'OBJECT IDENTIFIER',              tag: null,           required: true,  desc: 'MUSS auf OID id-SE-API-system-log gesetzt sein.',                                          origin: 'Gerät' },
+        { name: 'eventType',             type: 'PrintableString ("enterSecureState")', tag: 'IMPLICIT', required: true,  desc: 'MUSS auf "enterSecureState" gesetzt sein.',                                            origin: 'Gerät' },
+        { name: 'eventOrigin',           type: 'PrintableString',                tag: '[3] IMPLICIT', required: false, desc: 'Herkunft des Ereignisses. In der Regel "SMA".',                                             origin: 'Gerät' },
+        { name: 'eventTriggeredByUser',  type: 'UserId',                         tag: '[4] IMPLICIT', required: false, desc: 'DARF NICHT vorhanden sein – enterSecureState wird nie durch einen Nutzer ausgelöst.',       origin: 'Gerät', note: 'DARF NICHT vorhanden sein' },
+        {
+          name: 'eventData',
+          type: 'EnterSecureStateEventData',
+          tag: '[5] IMPLICIT',
+          required: true,
+          desc: 'EnterSecureStateEventData: SEQUENCE { timeOfEvent Time OPTIONAL }. timeOfEvent ist konditional verpflichtend (muss vorhanden sein, wenn die Log-Nachricht verzögert erzeugt wurde).',
+          origin: 'Gerät',
+          children: EVT_ENTER_SECURE_STATE,
+        },
+        { name: 'additionalInternalData', type: 'OCTET STRING',                  tag: '[6] IMPLICIT', required: false, desc: 'RFU – DARF NICHT vorhanden sein.',                                                          origin: '–', note: 'RFU – darf nicht verwendet werden' },
+        { name: 'serialNumber',           type: 'OCTET STRING (SIZE (32))',       tag: null,           required: true,  desc: 'Seriennummer des Secure Element (Hash des öffentlichen Schlüssels).',                       origin: 'Gerät' },
+        { name: 'signatureAlgorithm',     type: 'AlgorithmIdentifier',           tag: null,           required: true,  desc: 'Informationen über die Signaturerstellung.',                                                origin: 'Gerät' },
+        { name: 'signatureCounter',       type: 'INTEGER',                        tag: null,           required: true,  desc: 'Aktueller Signaturzähler des Secure Element.',                                              origin: 'Secure Element' },
+        { name: 'signatureCreationTime',  type: 'Time',                           tag: null,           required: true,  desc: 'Zeitpunkt der Signatur im Secure Element.',                                                origin: 'Secure Element' },
+        { name: 'signatureValue',         type: 'OCTET STRING',                   tag: null,           required: true,  desc: 'Ergebnis der Signaturberechnung.',                                                         origin: 'Secure Element' },
+      ],
     },
     disableSecureElement: {
       logType: 'sys',

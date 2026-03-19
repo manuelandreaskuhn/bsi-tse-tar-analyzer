@@ -12,10 +12,10 @@ window.RulesCat09 = (function () {
     'enterSecureState': { origins: ['device', 'SMA', 'CSP'], trigger: false },
     'exitSecureState': { origins: ['device', 'SMA', 'CSP'], trigger: false },
     'selfTest': { origins: ['device', 'SMA', 'CSP', 'integration-interface'], trigger: null },
-    'initialize': { origins: ['integration-interface'], trigger: false },
+    'initialize': { origins: ['integration-interface'], trigger: true },
     'updateTime': { origins: ['integration-interface', 'CSP'], trigger: null },
     'setDescription': { origins: ['integration-interface'], trigger: true },
-    'disableSecureElement': { origins: ['SMA', 'device'], trigger: false },
+    'disableSecureElement': { origins: ['SMA', 'device', 'integration-interface'], trigger: null },
     'getDeviceHealth': { origins: ['SMA', 'CSP', 'device', 'integration-interface'], trigger: null },
     'authenticateUser': { origins: ['integration-interface'], trigger: true },
     'logOut': { origins: ['integration-interface', 'SMA', 'CSP'], trigger: null },
@@ -30,7 +30,7 @@ window.RulesCat09 = (function () {
       for (const id of ['LOG_EVTYPE', 'LOG_ORIGIN', 'LOG_TRIGGER', 'LOG_EVDATA', 'SYSLOG_RULES',
         'SYS_EVT_STARTAUDIT_FIRST', 'SYS_EVT_SECURE_PAIRS', 'SYS_EVT_UPDATETIME_GAP',
         'SYS_EVT_LOGOUT_PRESENT', 'SYS_EVT_SELFTEST_PRESENT', 'EVDATA_STARTAUDIT',
-        'EVDATA_EXITSECURE', 'EVDATA_ENTERSTATE_TIMEOFEVENT', 'EVDATA_AUTH_RESULT', 'EVDATA_AUTH_RETRIES',
+        'EVDATA_EXITSECURE', 'EVDATA_ENTERSTATE_TIMEOFEVENT', 'EVDATA_ENTERSTATE_TIMEOFEVENT_FORMAT', 'EVDATA_AUTH_RESULT', 'EVDATA_AUTH_RETRIES',
         'EVDATA_SELFTEST_ALL_PASSED', 'EVDATA_SELFTEST_COMPONENTS']) {
         results.push(Utils.skip(id, id, CAT, 'Keine SystemLog-Dateien vorhanden.', '', 'BSI TR-03151-1'));
       }
@@ -70,8 +70,9 @@ window.RulesCat09 = (function () {
           'BSI TR-03151-1 SystemLogMessage §4'));
 
       // LOG_TRIGGER
-      const triggerMissing = [];  // trigger === true but field absent
-      const triggerForbidden = []; // trigger === false but field present
+      const triggerMissing = [];         // trigger === true but field absent
+      const triggerForbidden = [];        // trigger === false but field present
+      const triggerMissingOrigin = [];    // origin === integration-interface but field absent (trigger null)
       for (const log of sysLogs) {
         const rule = SYSLOG_MATRIX[log.eventType];
         if (!rule) continue;
@@ -79,19 +80,22 @@ window.RulesCat09 = (function () {
           triggerMissing.push(`${log._filename} (${log.eventType})`);
         if (rule.trigger === false && log.eventTriggeredByUser)
           triggerForbidden.push(`${log._filename} (${log.eventType})`);
+        if (log.eventOrigin === 'integration-interface' && rule.trigger === null && !log.eventTriggeredByUser)
+          triggerMissingOrigin.push(`${log._filename} (${log.eventType}, Origin: integration-interface)`);
       }
       {
-        const violations = [...triggerMissing, ...triggerForbidden];
+        const violations = [...triggerMissing, ...triggerForbidden, ...triggerMissingOrigin];
         const withTrigger = sysLogs.filter(l => l.eventTriggeredByUser).length;
         results.push(violations.length === 0
           ? Utils.pass('LOG_TRIGGER', 'eventTriggeredByUser', CAT,
             `eventTriggeredByUser korrekt gesetzt. ${withTrigger} von ${sysLogs.length} SystemLogs haben das Feld.`,
-            'Das Feld `eventTriggeredByUser` ist typabhängig (MUSS/DARF NICHT/OPTIONAL) gemäß SYSLOG-Matrix.',
+            'Das Feld `eventTriggeredByUser` ist typabhängig (MUSS/DARF NICHT/OPTIONAL) gemäß SYSLOG-Matrix. Bei Origin integration-interface ist es stets Pflicht.',
             'BSI TR-03151-1 SystemLogMessage §5')
           : Utils.fail('LOG_TRIGGER', 'eventTriggeredByUser', CAT,
             (triggerMissing.length > 0 ? `Fehlendes eventTriggeredByUser (MUSS vorhanden sein):\n${triggerMissing.join('\n')}\n` : '') +
-            (triggerForbidden.length > 0 ? `Unerlaubtes eventTriggeredByUser (DARF NICHT vorhanden sein):\n${triggerForbidden.join('\n')}` : ''),
-            'Das Feld `eventTriggeredByUser` ist typabhängig (MUSS/DARF NICHT/OPTIONAL) gemäß SYSLOG-Matrix.',
+            (triggerForbidden.length > 0 ? `Unerlaubtes eventTriggeredByUser (DARF NICHT vorhanden sein):\n${triggerForbidden.join('\n')}\n` : '') +
+            (triggerMissingOrigin.length > 0 ? `Fehlendes eventTriggeredByUser (MUSS bei Origin integration-interface vorhanden sein):\n${triggerMissingOrigin.join('\n')}` : ''),
+            'Das Feld `eventTriggeredByUser` ist typabhängig (MUSS/DARF NICHT/OPTIONAL) gemäß SYSLOG-Matrix. Bei Origin integration-interface ist es stets Pflicht.',
             'BSI TR-03151-1 SystemLogMessage §5'));
       }
 
@@ -325,23 +329,49 @@ window.RulesCat09 = (function () {
           'BSI TR-03151-1 §5.4'));
     }
 
-    // EVDATA_ENTERSTATE_TIMEOFEVENT – timeOfEvent in enterSecureState eventData
+    // EVDATA_ENTERSTATE_TIMEOFEVENT – Vorhandensein von timeOfEvent in enterSecureState eventData
+    // EnterSecureStateEventData ::= SEQUENCE { timeOfEvent Time OPTIONAL }
+    // timeOfEvent ist im ASN.1 OPTIONAL, aber konditional verpflichtend:
+    // Es MUSS vorhanden sein, wenn die Log-Nachricht nicht unmittelbar beim
+    // Fehlereintritt erzeugt werden konnte (z.B. nach einem Neustart).
     const enterLogs = sysLogsAll.filter(l => l.eventType === 'enterSecureState');
     if (enterLogs.length === 0) {
-      results.push(Utils.skip('EVDATA_ENTERSTATE_TIMEOFEVENT', 'timeOfEvent in enterSecureState-Ereignissen', CAT,
+      results.push(Utils.skip('EVDATA_ENTERSTATE_TIMEOFEVENT', 'timeOfEvent in enterSecureState-Ereignissen vorhanden', CAT,
+        'Keine enterSecureState-Logs.', '', 'BSI TR-03151-1 §5.4'));
+      results.push(Utils.skip('EVDATA_ENTERSTATE_TIMEOFEVENT_FORMAT', 'timeOfEvent-Format in enterSecureState-Ereignissen', CAT,
         'Keine enterSecureState-Logs.', '', 'BSI TR-03151-1 §5.4'));
     } else {
-      // EnterSecureStateEventData: SEQUENCE { timeOfEvent GeneralizedTime }
-      // Parser sets l.timeOfEvent (Date) for every enterSecureState log
-      const noTimeField = enterLogs.filter(l => l.timeOfEvent == null).map(l => l._filename);
-      results.push(noTimeField.length === 0
-        ? Utils.pass('EVDATA_ENTERSTATE_TIMEOFEVENT', 'timeOfEvent in enterSecureState-Ereignissen', CAT,
-          `Alle ${enterLogs.length} enterSecureState-Logs: EnterSecureStateEventData mit timeOfEvent (GeneralizedTime/UTCTime) korrekt erkannt.`,
-          'EnterSecureStateEventData muss timeOfEvent als GeneralizedTime oder UTCTime enthalten.', 'BSI TR-03151-1 §5.4')
-        : Utils.fail('EVDATA_ENTERSTATE_TIMEOFEVENT', 'timeOfEvent in enterSecureState-Ereignissen', CAT,
-          `${noTimeField.length} enterSecureState-Logs ohne erkennbares timeOfEvent-Feld: ${noTimeField.join(', ')}`,
-          'EnterSecureStateEventData muss timeOfEvent enthalten.', 'BSI TR-03151-1 §5.4'));
+      const withTime    = enterLogs.filter(l => l.timeOfEvent != null);
+      const withoutTime = enterLogs.filter(l => l.timeOfEvent == null);
+
+      // Presence check
+      results.push(withoutTime.length === 0
+        ? Utils.pass('EVDATA_ENTERSTATE_TIMEOFEVENT', 'timeOfEvent in enterSecureState-Ereignissen vorhanden', CAT,
+          `Alle ${enterLogs.length} enterSecureState-Logs haben timeOfEvent.`,
+          'EnterSecureStateEventData: timeOfEvent (Time OPTIONAL) – konditional verpflichtend, wenn die Nachricht verzögert erzeugt wurde.', 'BSI TR-03151-1 §5.4')
+        : Utils.fail('EVDATA_ENTERSTATE_TIMEOFEVENT', 'timeOfEvent in enterSecureState-Ereignissen vorhanden', CAT,
+          `${withoutTime.length} von ${enterLogs.length} enterSecureState-Logs ohne timeOfEvent: ${withoutTime.map(l => l._filename).join(', ')}` +
+          (withTime.length > 0 ? `\nMit timeOfEvent: ${withTime.map(l => l._filename).join(', ')}` : ''),
+          'timeOfEvent ist ASN.1-OPTIONAL, aber konditional verpflichtend – muss vorhanden sein, wenn der Eintritt in den sicheren Zustand nicht sofort protokolliert werden konnte (z.B. nach einem Neustart).', 'BSI TR-03151-1 §5.4'));
+
+      // Format check – only for logs that have timeOfEvent
+      if (withTime.length === 0) {
+        results.push(Utils.skip('EVDATA_ENTERSTATE_TIMEOFEVENT_FORMAT', 'timeOfEvent-Format in enterSecureState-Ereignissen', CAT,
+          'Kein enterSecureState-Log mit timeOfEvent vorhanden – Formatprüfung übersprungen.', '', 'BSI TR-03151-1 §5.4'));
+      } else {
+        // l.timeOfEvent is expected to be a Date object (parsed by the ASN.1 parser from
+        // GeneralizedTime or UTCTime). A valid Date means the format was recognised.
+        const badFormat = withTime.filter(l => !(l.timeOfEvent instanceof Date) || isNaN(l.timeOfEvent.getTime()));
+        results.push(badFormat.length === 0
+          ? Utils.pass('EVDATA_ENTERSTATE_TIMEOFEVENT_FORMAT', 'timeOfEvent-Format in enterSecureState-Ereignissen', CAT,
+            `Alle ${withTime.length} enterSecureState-Logs mit timeOfEvent: gültiges Zeitformat (GeneralizedTime / UTCTime).`,
+            'timeOfEvent muss als GeneralizedTime oder UTCTime (ASN.1 Time) kodiert sein.', 'BSI TR-03151-1 §5.4')
+          : Utils.fail('EVDATA_ENTERSTATE_TIMEOFEVENT_FORMAT', 'timeOfEvent-Format in enterSecureState-Ereignissen', CAT,
+            `${badFormat.length} enterSecureState-Logs mit ungültigem timeOfEvent-Format: ${badFormat.map(l => l._filename).join(', ')}`,
+            'timeOfEvent muss als GeneralizedTime oder UTCTime (ASN.1 Time) kodiert sein.', 'BSI TR-03151-1 §5.4'));
+      }
     }
+
     // EVDATA_AUTH_RESULT – AuthenticationEventData: SEQUENCE { authenticationResult BOOLEAN, remainingRetries INTEGER OPTIONAL }
     const authLogs = sysLogsAll.filter(l => l.eventType === 'authenticateUser');
     if (authLogs.length === 0) {

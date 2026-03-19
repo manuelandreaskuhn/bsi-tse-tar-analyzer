@@ -23,6 +23,10 @@ window.RulesCat24 = (function() {
         const tlv = ASN1.readTLV(buf, 0);
         if (tlv) return { isEmpty: false, kids: [tlv] };
       }
+      // Fallback: buffer may be raw SEQUENCE content (IMPLICIT tagging strips the outer 0x30 wrapper,
+      // e.g. updateDeviceCompleted eventData starts with 0x0a ENUMERATED)
+      const kidsFlat = ASN1.parseChildren(buf, 0, buf.length);
+      if (kidsFlat.length > 0) return { isEmpty: false, kids: kidsFlat };
       return { isEmpty: false, kids: [], error: `Unbekannter Tag 0x${buf[0].toString(16)}` };
     } catch(e) { return { isEmpty: false, kids: [], error: e.message }; }
   }
@@ -67,15 +71,15 @@ window.RulesCat24 = (function() {
       results.push(Utils.pass('DSE_LOG_EVTYPE', 'eventType = disableSecureElement', CAT,
         `Alle ${dseLogs.length} Logs haben eventType = "disableSecureElement".`, '', REF));
 
-      // DSE_LOG_EVORIGIN: must be 'SMA' or 'device'
-      const validDseOrigins = ['SMA','device'];
+      // DSE_LOG_EVORIGIN: must be 'SMA' or 'device' or 'integration-interface'
+      const validDseOrigins = ['SMA','device', 'integration-interface']; // allow integration-interface as well since TR-03151-1 §4.8 doesn't explicitly exclude it, and some implementations might use it for external triggers
       const badOrigin = dseLogs.filter(l => !validDseOrigins.includes(l.eventOrigin||''));
       results.push(badOrigin.length === 0
-        ? Utils.pass('DSE_LOG_EVORIGIN', 'eventOrigin ∈ {SMA, device}', CAT,
+        ? Utils.pass('DSE_LOG_EVORIGIN', 'eventOrigin ∈ {SMA, device, integration-interface}', CAT,
             `Alle ${dseLogs.length} Logs: eventOrigin korrekt (${[...new Set(dseLogs.map(l=>l.eventOrigin))].join(', ')}).`, '', REF)
-        : Utils.fail('DSE_LOG_EVORIGIN', 'eventOrigin ∈ {SMA, device}', CAT,
+        : Utils.fail('DSE_LOG_EVORIGIN', 'eventOrigin ∈ {SMA, device, integration-interface}', CAT,
             `${badOrigin.length} Logs mit ungültigem eventOrigin: ${badOrigin.map(l=>`${l._filename}→"${l.eventOrigin||'(fehlt)'}"`).join(', ')}`,
-            'eventOrigin muss "SMA" oder "device" sein.', REF));
+            'eventOrigin muss "SMA", "device" oder "integration-interface" sein.', REF));
 
       // DSE_LOG_EVDATA_EMPTY: eventData must be null or empty SEQUENCE (0x30 0x00)
       const notEmpty = dseLogs.filter(l => {
@@ -116,26 +120,70 @@ window.RulesCat24 = (function() {
        'UDD_EVDATA_ASN1','UDD_COMP_NAMES','UDD_OUTCOME_VALID','UDD_OUTCOME_SUCCESS_NO_REASON','UDD_NO_USER_EXTERNAL'].forEach(id =>
         results.push(Utils.skip(id, id, CAT, 'Keine updateDevice/updateDeviceCompleted-Logs.', '', REF)));
     } else {
-      const VALID_OUTCOMES   = ['updateSuccessful', 'updateFailed'];
+      const VALID_OUTCOMES   = ['updateSuccessful', 'updateFailed', 'partlyFailed'];
       const VALID_COMPONENTS = ['device', 'storage', 'integration-interface', 'CSP', 'SMA'];
 
-      // Helper: parse component info from eventData SEQUENCE
-      // Fields: componentName (UTF8/Printable), manufacturer, model, version (UTF8/Printable strings), updateOutcome (ENUM, completed only)
+      const STR_TAGS_UDD = [0x0C,0x13,0x16,0x1A,0x1B];
+
+      // Extract all componentName strings from a DeviceInformationSet value buffer
+      // buf = content of SEQUENCE OF ComponentInformationSet (the children, no outer TLV)
+      function _deviceInfoNames(buf) {
+        const names = [];
+        try {
+          for (const comp of ASN1.parseChildren(buf, 0, buf.length)) {
+            if (comp.tag !== 0x30) continue;
+            const fields = ASN1.parseChildren(comp.value, 0, comp.value.length);
+            const nameKid = fields.find(k => STR_TAGS_UDD.includes(k.tag));
+            if (nameKid) names.push(readStr(nameKid));
+          }
+        } catch(_) {}
+        return names;
+      }
+
+      // Parse component info from eventData.
+      // updateDeviceCompleted: IMPLICIT SEQUENCE → kids = [updateOutcome ENUM, [reason], DeviceInformationSet SEQUENCE]
+      // updateDevice:          outer SEQUENCE → kids = ComponentInformationSets or one DeviceInformationSet wrapper
       function parseUddEvtData(l) {
         const p = parseEvtData(l);
-        let componentName = null, updateOutcome = null, hasReasonForFailure = false;
-        if (p.kids.length > 0) {
-          const strKids = p.kids.filter(k => [0x0C,0x13,0x16,0x1A,0x1B].includes(k.tag));
-          if (strKids.length > 0) componentName = readStr(strKids[0]);
+        let componentNames = [], updateOutcome = null, hasReasonForFailure = false;
+
+        if (!p.parseError && p.kids.length > 0) {
           const enumKid = p.kids.find(k => k.tag === 0x0A);
+
           if (enumKid) {
+            // updateDeviceCompleted structure
             let ev = 0; for (const b of enumKid.value) ev = ev * 256 + b;
-            updateOutcome = ev === 0 ? 'updateSuccessful' : ev === 1 ? 'updateFailed' : `ENUM:${ev}`;
-            // reasonForFailure is an optional string after the outcome enum
-            hasReasonForFailure = strKids.length > 1;
+            updateOutcome = ev === 0 ? 'updateSuccessful' : ev === 1 ? 'updateFailed' : ev === 2 ? 'partlyFailed' : `ENUM:${ev}`;
+            // reasonForFailure is an optional string at the top level (only present on failure)
+            hasReasonForFailure = p.kids.some(k => STR_TAGS_UDD.includes(k.tag));
+            // deviceInformationAfterUpdate: first SEQUENCE kid
+            const devInfoSeq = p.kids.find(k => k.tag === 0x30);
+            if (devInfoSeq) componentNames = _deviceInfoNames(devInfoSeq.value);
+          } else {
+            // updateDevice structure: DeviceInformationSet within the outer SEQUENCE
+            const seqKids = p.kids.filter(k => k.tag === 0x30);
+            if (seqKids.length === 1) {
+              // One SEQUENCE kid — check if it wraps ComponentInformationSets (DeviceInformationSet)
+              // or if it IS a ComponentInformationSet (contains strings, not SEQUENCEs)
+              const inner = ASN1.parseChildren(seqKids[0].value, 0, seqKids[0].value.length);
+              if (inner.some(k => k.tag === 0x30)) {
+                componentNames = _deviceInfoNames(seqKids[0].value);
+              } else {
+                const nameKid = inner.find(k => STR_TAGS_UDD.includes(k.tag));
+                if (nameKid) componentNames.push(readStr(nameKid));
+              }
+            } else {
+              // Multiple SEQUENCE kids = flat ComponentInformationSets
+              for (const s of seqKids) {
+                const fields = ASN1.parseChildren(s.value, 0, s.value.length);
+                const nameKid = fields.find(k => STR_TAGS_UDD.includes(k.tag));
+                if (nameKid) componentNames.push(readStr(nameKid));
+              }
+            }
           }
         }
-        return { componentName, updateOutcome, hasReasonForFailure, parseError: p.error };
+
+        return { componentName: componentNames[0] ?? null, componentNames, updateOutcome, hasReasonForFailure, parseError: p.error };
       }
 
       const uddStartParsed = uddStart.map(l => ({ log: l, ...parseUddEvtData(l) }));
@@ -178,19 +226,20 @@ window.RulesCat24 = (function() {
             `${asn1Fails.length} Logs mit ASN.1-Parsing-Fehler:\n${asn1Fails.map(u=>`  ${u.log._filename}: ${u.parseError}`).join('\n')}`,
             'eventData muss eine gültige ASN.1-SEQUENCE sein.', REF));
 
-      // UDD_COMP_NAMES – componentName must be a known value
+      // UDD_COMP_NAMES – all componentNames must be known values
       const allParsed = [...uddStartParsed, ...uddCompParsed];
-      const badComp = allParsed.filter(u => u.componentName && !VALID_COMPONENTS.includes(u.componentName));
-      const noComp  = allParsed.filter(u => !u.componentName && !u.parseError);
+      const badComp = allParsed.filter(u => u.componentNames.some(n => !VALID_COMPONENTS.includes(n)));
+      const noComp  = allParsed.filter(u => u.componentNames.length === 0 && !u.parseError);
+      const totalNames = allParsed.reduce((s, u) => s + u.componentNames.length, 0);
       results.push(noComp.length > 0
         ? Utils.warn('UDD_COMP_NAMES', 'componentName ist gültiger Komponentenbezeichner', CAT,
-            `${noComp.length} Logs ohne erkannten componentName (eventData-Parsing).`,
+            `${noComp.length} Logs ohne erkannte Komponentennamen (eventData-Parsing).`,
             `Erlaubt: ${VALID_COMPONENTS.join(', ')}`, REF)
         : badComp.length === 0
           ? Utils.pass('UDD_COMP_NAMES', 'componentName ist gültiger Komponentenbezeichner', CAT,
-              `Alle geparsten Logs: componentName ∈ {${VALID_COMPONENTS.join(', ')}}.`, '', REF)
+              `Alle ${totalNames} geparsten Komponentennamen ∈ {${VALID_COMPONENTS.join(', ')}}.`, '', REF)
           : Utils.fail('UDD_COMP_NAMES', 'componentName ist gültiger Komponentenbezeichner', CAT,
-              `${badComp.length} Logs mit ungültigem componentName:\n${badComp.map(u=>`  ${u.log._filename} → "${u.componentName}"`).join('\n')}`,
+              `${badComp.length} Logs mit ungültigem componentName:\n${badComp.map(u=>`  ${u.log._filename} → [${u.componentNames.filter(n=>!VALID_COMPONENTS.includes(n)).map(n=>`"${n}"`).join(', ')}]`).join('\n')}`,
               `Erlaubt: ${VALID_COMPONENTS.join(', ')}`, REF));
 
       // UDD_OUTCOME_VALID – updateDeviceCompleted must have a valid updateOutcome ENUM
