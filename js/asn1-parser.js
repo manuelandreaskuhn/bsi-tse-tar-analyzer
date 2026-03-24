@@ -546,13 +546,18 @@ const ASN1 = (() => {
             }
           }
 
-          // ── enterSecureState: timeOfEvent (GeneralizedTime / UTCTime) ────
+          // ── enterSecureState: timeOfEvent (GeneralizedTime / UTCTime / INTEGER Unix timestamp) ────
           if (r.eventType === 'enterSecureState') {
-            const timeKid = kids.find(k => k.tag === 0x18 || k.tag === 0x17);
+            const timeKid = kids.find(k => k.tag === 0x18 || k.tag === 0x17 || k.tag === 0x02);
             if (timeKid) {
-              r.timeOfEvent = timeKid.tag === 0x18
-                ? readGeneralizedTime(timeKid.value)
-                : readUTCTime(timeKid.value);
+              if (timeKid.tag === 0x18) {
+                r.timeOfEvent = readGeneralizedTime(timeKid.value);
+              } else if (timeKid.tag === 0x17) {
+                r.timeOfEvent = readUTCTime(timeKid.value);
+              } else {
+                // INTEGER: Unix timestamp (seconds since epoch)
+                r.timeOfEvent = new Date(_readUint(timeKid.value) * 1000);
+              }
             }
           }
 
