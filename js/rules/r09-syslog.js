@@ -359,16 +359,20 @@ window.RulesCat09 = (function () {
         results.push(Utils.skip('EVDATA_ENTERSTATE_TIMEOFEVENT_FORMAT', 'timeOfEvent-Format in enterSecureState-Ereignissen', CAT,
           'Kein enterSecureState-Log mit timeOfEvent vorhanden – Formatprüfung übersprungen.', '', 'BSI TR-03151-1 §5.4'));
       } else {
-        // l.timeOfEvent is expected to be a Date object (parsed by the ASN.1 parser from
-        // GeneralizedTime or UTCTime). A valid Date means the format was recognised.
-        const badFormat = withTime.filter(l => !(l.timeOfEvent instanceof Date) || isNaN(l.timeOfEvent.getTime()));
+        // l.timeOfEvent is either a Date (from GeneralizedTime / UTCTime) or a number
+        // (INTEGER Unix timestamp). Both are valid encodings.
+        const badFormat = withTime.filter(l => {
+          if (l.timeOfEvent instanceof Date) return isNaN(l.timeOfEvent.getTime());
+          if (typeof l.timeOfEvent === 'number') return !Number.isFinite(l.timeOfEvent);
+          return true; // unbekannter Typ → ungültig
+        });
         results.push(badFormat.length === 0
           ? Utils.pass('EVDATA_ENTERSTATE_TIMEOFEVENT_FORMAT', 'timeOfEvent-Format in enterSecureState-Ereignissen', CAT,
-            `Alle ${withTime.length} enterSecureState-Logs mit timeOfEvent: gültiges Zeitformat (GeneralizedTime / UTCTime).`,
-            'timeOfEvent muss als GeneralizedTime oder UTCTime (ASN.1 Time) kodiert sein.', 'BSI TR-03151-1 §5.4')
+            `Alle ${withTime.length} enterSecureState-Logs mit timeOfEvent: gültiges Zeitformat (GeneralizedTime / UTCTime / INTEGER Unix-Timestamp).`,
+            'timeOfEvent muss als GeneralizedTime, UTCTime (ASN.1 Time) oder INTEGER (Unix-Timestamp) kodiert sein.', 'BSI TR-03151-1 §5.4')
           : Utils.fail('EVDATA_ENTERSTATE_TIMEOFEVENT_FORMAT', 'timeOfEvent-Format in enterSecureState-Ereignissen', CAT,
             `${badFormat.length} enterSecureState-Logs mit ungültigem timeOfEvent-Format: ${badFormat.map(l => l._filename).join(', ')}`,
-            'timeOfEvent muss als GeneralizedTime oder UTCTime (ASN.1 Time) kodiert sein.', 'BSI TR-03151-1 §5.4'));
+            'timeOfEvent muss als GeneralizedTime, UTCTime (ASN.1 Time) oder INTEGER (Unix-Timestamp) kodiert sein.', 'BSI TR-03151-1 §5.4'));
       }
     }
 
